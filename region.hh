@@ -4,6 +4,8 @@
 #include <algorithm>
 #include <cstring>
 #include <unistd.h>
+
+#define LZ4_DISABLE_DEPRECATE_WARNINGS
 #include <lz4.h>
 
 #include <cstdio>
@@ -21,7 +23,7 @@ class Region {
 public:
   char *mem;
   size_t capacity;
-  offset_t end;
+  size_t end;
 
 public:
   Region()
