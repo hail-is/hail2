@@ -38,10 +38,6 @@ public:
   
   void clear() { end = 0; }
   
-  void align(offset_t alignment) {
-    end = alignto(end, alignment);
-  }
-  
   void grow() {
     size_t new_capacity = std::max((capacity * 3) >> 1, end);
     char *new_mem = (char *)malloc(new_capacity);
@@ -51,7 +47,8 @@ public:
     capacity = new_capacity;
   }
   
-  offset_t allocate(offset_t n) {
+  offset_t allocate(offset_t alignment, offset_t n) {
+    end = alignto(end, alignment);
     offset_t p = end;
     end += n;
     if (capacity < end)

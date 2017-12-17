@@ -3,7 +3,7 @@
 
 template<class T> bool
 isa(const typename T::Base *v) {
-  return v->kind() == T::kindof;
+  return v->kind == T::kindof;
 }
 
 template<class T> const T *

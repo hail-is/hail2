@@ -1,14 +1,12 @@
 offset_t read_rv() {
-  region.align(8);
-  offset_t soff1 = region.allocate(224);
+  offset_t soff1 = region.allocate(8, 224);
   in.read_bytes(region, soff1, 1);
   if (!region.load_bit(soff1, 0)) { // pk
     offset_t soff2 = soff1 + 8;
     in.read_bytes(region, soff2, 1);
     if (!region.load_bit(soff2, 0)) { // contig
       int len4 = in.read_int();
-      region.align(4);
-      offset_t boff3 = region.allocate(4 + len4);
+      offset_t boff3 = region.allocate(4, 4 + len4);
       region.store_int(boff3, len4);
       in.read_bytes(region, boff3 + 4, len4);
       region.store_offset(soff2 + 8, boff3);
@@ -22,8 +20,7 @@ offset_t read_rv() {
     in.read_bytes(region, soff5, 1);
     if (!region.load_bit(soff5, 0)) { // contig
       int len7 = in.read_int();
-      region.align(4);
-      offset_t boff6 = region.allocate(4 + len7);
+      offset_t boff6 = region.allocate(4, 4 + len7);
       region.store_int(boff6, len7);
       in.read_bytes(region, boff6 + 4, len7);
       region.store_offset(soff5 + 8, boff6);
@@ -33,8 +30,7 @@ offset_t read_rv() {
     } // end field 1 
     if (!region.load_bit(soff5, 2)) { // ref
       int len9 = in.read_int();
-      region.align(4);
-      offset_t boff8 = region.allocate(4 + len9);
+      offset_t boff8 = region.allocate(4, 4 + len9);
       region.store_int(boff8, len9);
       in.read_bytes(region, boff8 + 4, len9);
       region.store_offset(soff5 + 16, boff8);
@@ -44,8 +40,7 @@ offset_t read_rv() {
       int len11 = in.read_int();
       int nmissing12 = (len11 + 7) >> 3;
       int elems_off13 = alignto(4 + nmissing12, 8);
-      region.align(8);
-      aoff10 = region.allocate(elems_off13 + len11 * 24);
+      aoff10 = region.allocate(8, elems_off13 + len11 * 24);
       region.store_int(aoff10, len11);
       in.read_bytes(region, aoff10 + 4, nmissing12);
       for (int i14 = 0; i14 < len11; ++i14) {
@@ -54,16 +49,14 @@ offset_t read_rv() {
 	  in.read_bytes(region, elem_off15, 1);
 	  if (!region.load_bit(elem_off15, 0)) { // ref
 	    int len17 = in.read_int();
-	    region.align(4);
-	    offset_t boff16 = region.allocate(4 + len17);
+	    offset_t boff16 = region.allocate(4, 4 + len17);
 	    region.store_int(boff16, len17);
 	    in.read_bytes(region, boff16 + 4, len17);
 	    region.store_offset(elem_off15 + 8, boff16);
 	  } // end field 0 
 	  if (!region.load_bit(elem_off15, 1)) { // alt
 	    int len19 = in.read_int();
-	    region.align(4);
-	    offset_t boff18 = region.allocate(4 + len19);
+	    offset_t boff18 = region.allocate(4, 4 + len19);
 	    region.store_int(boff18, len19);
 	    in.read_bytes(region, boff18 + 4, len19);
 	    region.store_offset(elem_off15 + 16, boff18);
@@ -78,8 +71,7 @@ offset_t read_rv() {
     in.read_bytes(region, soff20, 1);
     if (!region.load_bit(soff20, 0)) { // rsid
       int len22 = in.read_int();
-      region.align(4);
-      offset_t boff21 = region.allocate(4 + len22);
+      offset_t boff21 = region.allocate(4, 4 + len22);
       region.store_int(boff21, len22);
       in.read_bytes(region, boff21 + 4, len22);
       region.store_offset(soff20 + 8, boff21);
@@ -92,16 +84,14 @@ offset_t read_rv() {
       int len24 = in.read_int();
       int nmissing25 = (len24 + 7) >> 3;
       int elems_off26 = alignto(4 + nmissing25, 8);
-      region.align(8);
-      aoff23 = region.allocate(elems_off26 + len24 * 8);
+      aoff23 = region.allocate(8, elems_off26 + len24 * 8);
       region.store_int(aoff23, len24);
       in.read_bytes(region, aoff23 + 4, nmissing25);
       for (int i27 = 0; i27 < len24; ++i27) {
 	if (!region.load_bit(aoff23 + 4, i27)) {
 	  offset_t elem_off28 = aoff23 + elems_off26 + i27 * 8;
 	  int len30 = in.read_int();
-	  region.align(4);
-	  offset_t boff29 = region.allocate(4 + len30);
+	  offset_t boff29 = region.allocate(4, 4 + len30);
 	  region.store_int(boff29, len30);
 	  in.read_bytes(region, boff29 + 4, len30);
 	  region.store_offset(elem_off28, boff29);
@@ -117,8 +107,7 @@ offset_t read_rv() {
 	int len33 = in.read_int();
 	int nmissing34 = (len33 + 7) >> 3;
 	int elems_off35 = alignto(4 + nmissing34, 4);
-	region.align(4);
-	aoff32 = region.allocate(elems_off35 + len33 * 4);
+	aoff32 = region.allocate(4, elems_off35 + len33 * 4);
 	region.store_int(aoff32, len33);
 	in.read_bytes(region, aoff32 + 4, nmissing34);
 	for (int i36 = 0; i36 < len33; ++i36) {
@@ -134,8 +123,7 @@ offset_t read_rv() {
 	int len39 = in.read_int();
 	int nmissing40 = (len39 + 7) >> 3;
 	int elems_off41 = alignto(4 + nmissing40, 8);
-	region.align(8);
-	aoff38 = region.allocate(elems_off41 + len39 * 8);
+	aoff38 = region.allocate(8, elems_off41 + len39 * 8);
 	region.store_int(aoff38, len39);
 	in.read_bytes(region, aoff38 + 4, nmissing40);
 	for (int i42 = 0; i42 < len39; ++i42) {
@@ -175,8 +163,7 @@ offset_t read_rv() {
 	int len45 = in.read_int();
 	int nmissing46 = (len45 + 7) >> 3;
 	int elems_off47 = alignto(4 + nmissing46, 4);
-	region.align(4);
-	aoff44 = region.allocate(elems_off47 + len45 * 4);
+	aoff44 = region.allocate(4, elems_off47 + len45 * 4);
 	region.store_int(aoff44, len45);
 	in.read_bytes(region, aoff44 + 4, nmissing46);
 	for (int i48 = 0; i48 < len45; ++i48) {
@@ -192,8 +179,7 @@ offset_t read_rv() {
 	int len51 = in.read_int();
 	int nmissing52 = (len51 + 7) >> 3;
 	int elems_off53 = alignto(4 + nmissing52, 8);
-	region.align(8);
-	aoff50 = region.allocate(elems_off53 + len51 * 8);
+	aoff50 = region.allocate(8, elems_off53 + len51 * 8);
 	region.store_int(aoff50, len51);
 	in.read_bytes(region, aoff50 + 4, nmissing52);
 	for (int i54 = 0; i54 < len51; ++i54) {
@@ -221,8 +207,7 @@ offset_t read_rv() {
       } // end field 16 
       if (!region.load_bit(soff31, 17)) { // set
 	int len57 = in.read_int();
-	region.align(4);
-	offset_t boff56 = region.allocate(4 + len57);
+	offset_t boff56 = region.allocate(4, 4 + len57);
 	region.store_int(boff56, len57);
 	in.read_bytes(region, boff56 + 4, len57);
 	region.store_offset(soff31 + 120, boff56);
@@ -234,8 +219,7 @@ offset_t read_rv() {
     int len59 = in.read_int();
     int nmissing60 = (len59 + 7) >> 3;
     int elems_off61 = alignto(4 + nmissing60, 8);
-    region.align(8);
-    aoff58 = region.allocate(elems_off61 + len59 * 32);
+    aoff58 = region.allocate(8, elems_off61 + len59 * 32);
     region.store_int(aoff58, len59);
     in.read_bytes(region, aoff58 + 4, nmissing60);
     for (int i62 = 0; i62 < len59; ++i62) {
@@ -250,8 +234,7 @@ offset_t read_rv() {
 	  int len65 = in.read_int();
 	  int nmissing66 = (len65 + 7) >> 3;
 	  int elems_off67 = alignto(4 + nmissing66, 4);
-	  region.align(4);
-	  aoff64 = region.allocate(elems_off67 + len65 * 4);
+	  aoff64 = region.allocate(4, elems_off67 + len65 * 4);
 	  region.store_int(aoff64, len65);
 	  in.read_bytes(region, aoff64 + 4, nmissing66);
 	  for (int i68 = 0; i68 < len65; ++i68) {
@@ -273,8 +256,7 @@ offset_t read_rv() {
 	  int len71 = in.read_int();
 	  int nmissing72 = (len71 + 7) >> 3;
 	  int elems_off73 = alignto(4 + nmissing72, 4);
-	  region.align(4);
-	  aoff70 = region.allocate(elems_off73 + len71 * 4);
+	  aoff70 = region.allocate(4, elems_off73 + len71 * 4);
 	  region.store_int(aoff70, len71);
 	  in.read_bytes(region, aoff70 + 4, nmissing72);
 	  for (int i74 = 0; i74 < len71; ++i74) {

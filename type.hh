@@ -1,11 +1,23 @@
 
 #include <string>
 #include <vector>
+#include <ostream>
+#include <memory>
 
-class Type {
-protected:
+class BaseType;
+
+extern std::ostream &operator <<(std::ostream &out, const BaseType &t);
+
+class BaseType {
+public:
   enum class Kind
   {
+    // relational types
+    MATRIXTABLE,
+    TABLE,
+    // distributed linear algebra type
+    MATRIX,
+    // scalar types
     // fundamental types
     BOOL,
     INT32,
@@ -21,56 +33,78 @@ protected:
     VARIANT,
     INTERVAL,
   };
-
-private:
-  const Kind m_kind;
-  const bool m_required;
   
-public:
-  Type(Kind kind, bool required) : m_kind(kind), m_required(required) {}
+  Kind kind;
   
-  bool required() const { return m_required; }
+  BaseType(Kind kind) : kind(kind) {}
+  virtual ~BaseType();
   
-  Kind kind() const { return m_kind; }
+  virtual std::ostream &put_to(std::ostream &out) const = 0;
 };
 
-class TInt32 : Type {
+class Type : public BaseType {
 public:
-  TInt32(bool required)
-    : Type(Type::Kind::INT32, required) {}
+  const bool required;
+  
+  Type(Kind kind, bool required) : BaseType(kind), required(required) {}
 };
 
-class TFloat64 : Type {
+class TBoolean : public Type {
 public:
+  static constexpr Kind kindof = Kind::INT32;
+  
+  TBoolean(bool required)
+    : Type(BaseType::Kind::INT32, required) {}
+  
+  virtual std::ostream &put_to(std::ostream &out) const;
+};
+
+class TInt32 : public Type {
+public:
+  static constexpr Kind kindof = Kind::INT32;
+  
   TInt32(bool required)
-    : Type(Type::Kind::INT32, required) {}
+    : Type(BaseType::Kind::INT32, required) {}
+  
+  virtual std::ostream &put_to(std::ostream &out) const;
+};
+
+class TFloat64 : public Type {
+public:
+  static constexpr Kind kindof = Kind::FLOAT64;
+  
+  TFloat64(bool required)
+    : Type(BaseType::Kind::INT32, required) {}
+  
+  virtual std::ostream &put_to(std::ostream &out) const;
 };
 
 class Field {
 public:
-  const std::string m_name;
-  const Type *m_type;
-  
-public:
-  
+  const std::string name;
+  const std::shared_ptr<Type> type;
 };
 
-class TStruct : Type {
-  std::vector<Field> m_fields;
-
+class TStruct : public Type {
 public:
-  TStruct(const std::vector<Field> &fields, required bool)
-    : Type(Type::Kind::STRUCT, required) {}
+  const std::vector<Field> fields;
+  
+  TStruct(const std::vector<Field> &fields, bool required)
+    : Type(BaseType::Kind::STRUCT, required),
+      fields(fields) {}
+  
+  virtual std::ostream &put_to(std::ostream &out) const;
 };
 
-class TArray : Type {
-  const Type *m_element_type;
-  
+class TArray : public Type {
 public:
-  TArray(Type *element_type, bool required)
-    : Type(Type::Kind::ARRAY, required),
-      m_element_type(element_type) {}
+  static constexpr Kind kindof = Kind::ARRAY;
   
-  const Type *element_type() const { return m_element_type; }
+  const std::shared_ptr<Type> element_type;
+  
+  TArray(std::shared_ptr<Type> element_type, bool required)
+    : Type(BaseType::Kind::ARRAY, required),
+      element_type(element_type) {}
+  
+  virtual std::ostream &put_to(std::ostream &out) const;
 };
-
