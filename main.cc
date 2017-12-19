@@ -3,6 +3,7 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 
+#include <cassert>
 #include <iostream>
 #include <memory>
 
@@ -24,6 +25,14 @@ int
 main(int argc, char **argv)
 {
   Region region;
+  
+  const char *ts = "Struct { a: Array[Int32] }";
+  for (TokenIterator i(ts); !i.at_end(); ++i) {
+    std::cout << *i << "\n";
+  }
+  
+  auto tt = parse_type(ts);
+  std::cout << "tt: " << *tt << "\n";
   
   std::shared_ptr<Type> t = std::make_shared<TStruct>(
     std::vector<Field> {

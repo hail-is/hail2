@@ -1,12 +1,108 @@
 
+#include <ctype.h>
+
 #include <string>
 #include <vector>
 #include <ostream>
 #include <memory>
+#include <regex>
+#include <cassert>
 
 class BaseType;
+class Type;
 
-extern std::ostream &operator <<(std::ostream &out, const BaseType &t);
+extern std::ostream &operator<<(std::ostream &out, const BaseType &t);
+
+extern std::shared_ptr<Type> parse_type(const char *s);
+
+enum class TypeToken {
+  BOOLEAN,
+  INT32,
+  INT64,
+  FLOAT32,
+  FLOAT64,
+  STRING,
+  ARRAY,
+  STRUCT,
+  ID,
+  LBRACE,
+  RBRACE,
+  LBRACKET,
+  RBRACKET,
+  COLON,
+  COMMA,
+  BANG,
+};
+
+extern std::ostream &operator<<(std::ostream &out, TypeToken token);
+
+class TokenIterator {
+  static std::vector<std::tuple<std::regex, TypeToken>> patterns;
+  
+  const char *b;
+  
+  const char *token_e;
+  TypeToken token;
+  
+  void skip_ws() {
+    while (*b && isspace(*b))
+      ++b;
+  }
+  
+  void lex_token() {
+    for (auto &p : patterns) {
+      std::cmatch m;
+      if (std::regex_search(b, m, std::get<0>(p))) {
+        assert(m.position() == 0);
+        token_e = b + m.length();
+        token = std::get<1>(p);
+        return;
+      }
+    }
+    abort(); // no match
+  }
+  
+  void advance() {
+    skip_ws();
+    if (!at_end())
+      lex_token();
+  }
+  
+public:
+  TokenIterator(const char *b)
+    : b(b) {
+    advance();
+  }
+  
+  TokenIterator &operator++() {
+    b = token_e;
+    advance();
+    return *this;
+  }
+  
+  TokenIterator operator++(int) {
+    operator++();
+    return *this;
+  }
+  
+  TypeToken operator*() const {
+    assert(!at_end());
+    return token;
+  }
+  
+  bool operator==(const TokenIterator &that) {
+    return b == that.b;
+  }
+  bool operator !=(const TokenIterator &that) {
+    return !operator==(that);
+  }
+
+  std::string text() const {
+    return std::string(b, token_e);
+  }
+
+  bool at_end() const { return *b == '\0'; }
+};
 
 class BaseType {
 public:
