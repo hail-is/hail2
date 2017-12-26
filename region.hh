@@ -1,3 +1,5 @@
+#ifndef HAIL_REGION_HH
+#define HAIL_REGION_HH
 
 #include <cassert>
 #include <cstdint>
@@ -10,13 +12,9 @@
 
 #include <cstdio>
 
-using offset_t = uint64_t;
+#include "util.hh"
 
-inline offset_t alignto(offset_t p, offset_t alignment) {
-  assert(alignment > 0);
-  assert((alignment & (alignment - 1)) == 0); // power of 2
-  return (p + (alignment - 1)) & ~(alignment - 1);
-}
+using offset_t = uint64_t;
 
 class Region {
   // private:
@@ -38,9 +36,12 @@ public:
   
   void clear() { end = 0; }
   
-  void grow() {
-    size_t new_capacity = std::max((capacity * 3) >> 1, end);
+  void grow(size_t required) {
+    assert(capacity < required);
+    
+    size_t new_capacity = std::max((capacity * 3) >> 1, required);
     char *new_mem = (char *)malloc(new_capacity);
+    assert(new_mem != nullptr);
     memcpy(new_mem, mem, end);
     free(mem);
     mem = new_mem;
@@ -48,11 +49,12 @@ public:
   }
   
   offset_t allocate(offset_t alignment, offset_t n) {
-    end = alignto(end, alignment);
-    offset_t p = end;
-    end += n;
-    if (capacity < end)
-      grow();
+    offset_t p = alignto(end, alignment);
+    size_t new_end = p + n;
+    if (capacity < new_end)
+      grow(new_end);
+    end = new_end;
+    assert(end <= capacity);
     return p;
   }
   
@@ -64,7 +66,7 @@ public:
     return *(int64_t *)(mem + off);
   }
 
-  double load_float(offset_t off) const {
+  float load_float(offset_t off) const {
     return *(float *)(mem + off);
   }
 
@@ -97,7 +99,7 @@ public:
     *(int64_t *)(mem + off) = l;
   }
 
-  void store_float(offset_t off, double f) {
+  void store_float(offset_t off, float f) {
     *(float *)(mem + off) = f;
   }
 
@@ -131,8 +133,6 @@ public:
   RegionValue(Region *region_, offset_t offset_)
     : region(region_), offset(offset_)
   {}
-  
-  
 };
 
 class LZ4InputBuffer {
@@ -148,36 +148,10 @@ public:
   
   char *comp;
   
-  void read_fully(void *dst0, size_t n) {
-    char *dst = (char *)dst0;
-    while (n > 0) {
-      ssize_t nread = read(fd, dst, n);
-      assert(nread > 0);
-      dst += nread;
-      n -= nread;
-    }
-    assert(n == 0);
-  }
-  
-  void read_block() {
-    assert(off == end);
-    
-    // read the header
-    int32_t comp_len;
-    read_fully(&comp_len, 4);
-    
-    read_fully(comp, 4 + comp_len);
-    int decomp_len = *(int32_t *)comp;
-
-#ifndef NDEBUG
-    int comp_len2 =
-#endif
-      LZ4_decompress_fast(comp + 4, buf, decomp_len);
-    assert(comp_len2 == comp_len);
-    
-    off = 0;
-    end = decomp_len;
-  }
+  void read_fully(void *dst0, size_t n);
+  void read_block();
+  bool maybe_read_fully(void *dst0, size_t n);
+  bool maybe_read_block();
   
   void ensure(size_t n) {
     if (off == end)
@@ -186,18 +160,14 @@ public:
   }
   
 public:
-  LZ4InputBuffer(int fd_)
-    : fd(fd_),
-      off(0),
-      end(0) {
-    buf = (char *)malloc(block_size);
-    comp = (char *)malloc(4 + LZ4_compressBound(block_size));
-  }
+  LZ4InputBuffer(int fd_);
+  ~LZ4InputBuffer();
   
-  ~LZ4InputBuffer() {
-    close(fd);
-    free(buf);
-    free(comp);
+  int8_t read_byte_() {
+    assert(off < end);
+    int8_t b = *(int8_t *)(buf + off);
+    off += 1;
+    return b;
   }
   
   int8_t read_byte() {
@@ -211,14 +181,14 @@ public:
   
   float read_float() {
     ensure(4);
-    int8_t f = *(float *)(buf + off);
+    float f = *(float *)(buf + off);
     off += 4;
     return f;
   }
   
   double read_double() {
     ensure(8);
-    int8_t d = *(double *)(buf + off);
+    double d = *(double *)(buf + off);
     off += 8;
     return d;
   }
@@ -227,35 +197,29 @@ public:
 #define UNLIKELY(condition) __builtin_expect(static_cast<bool>(condition), 0)
   
   int32_t read_int() {
-    int8_t b = read_byte();
+    ensure(1);
+    
+    int8_t b = read_byte_();
     int32_t x = b & 0x7f;
     int shift = 7;
     while ((b & 0x80) != 0) {
-      b = read_byte();
+      b = read_byte_();
       x |= ((b & 0x7f) << shift);
       shift += 7;
     }
     return x;
   }
 
-  int32_t read_int2() {
-    int8_t b0 = read_byte();
-    int32_t x = b0 & 0x7f;
-    if (UNLIKELY((b0 & 0x80) != 0)) {
-      int8_t b1 = read_byte();
-      x |= ((b1 & 0x7f) << 7);
-      if (UNLIKELY((b1 & 0x80) != 0)) {
-	int8_t b2 = read_byte();
-	x |= ((b2 & 0x7f) << 14);
-	if (UNLIKELY((b2 & 0x80) != 0)) {
-	  int8_t b3 = read_byte();
-	  x |= ((b3 & 0x7f) << 21);
-	  if (UNLIKELY((b3 & 0x80) != 0)) {
-	    int8_t b4 = read_byte();
-	    x |= ((b4 & 0x7f) << 28);
-	  }
-	}
-      }
+  int64_t read_long() {
+    ensure(1);
+    
+    int8_t b = read_byte_();
+    int64_t x = b & 0x7f;
+    int shift = 7;
+    while ((b & 0x80) != 0) {
+      b = read_byte_();
+      x |= ((b & 0x7f) << shift);
+      shift += 7;
     }
     return x;
   }
@@ -274,3 +238,5 @@ public:
     }
   }
 };
+
+#endif // HAIL_REGION_HH
