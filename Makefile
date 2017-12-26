@@ -1,12 +1,43 @@
 
-OPTDEBUGFLAGS = -O3 -DNDEBUG -march=native
+# OPTDEBUGFLAGS = -O3 -DNDEBUG -march=native
 # OPTDEBUGFLAGS = -O -DNDEBUG -pg
-# OPTDEBUGFLAGS = -g
+OPTDEBUGFLAGS = -g
 # OPTDEBUGFLAGS = -g -pg
 
+CC = gcc
+CXX = g++
+
+INCLUDES = -Icpp
+
+CFLAGS = $(INCLUDES) -Wall -Werror -MD
+CXXFLAGS = $(INCLUDES) -std=c++17 -Wall -Werror -MD
+
+LDFLAGS = -Lcpp
+
+LIBS = -lhail3 -lfmt -llz4 -lz
+
+-include src/*.d
+
+.PHONY: all
+all: cpp/main python
+
 #  -fno-exceptions
-main: main.cc region.hh type.hh type.cc gzstream.C casting.hh
-	g++ $(OPTDEBUGFLAGS) -fno-rtti -std=c++17 -Wall -Werror -I/home/cotton/opt/fmt-3193460/include -I. main.cc type.cc region.cc gzstream.C -o main -L/home/cotton/opt/fmt-3193460/lib -llz4 -lz -lfmt
+cpp/libhail3.a: cpp/gzstream.o cpp/region.o cpp/type.o
+	rm -f $@
+	ar -r $@ $^
+
+cpp/main: cpp/main.o cpp/libhail3.a
+	g++ $(CXXFLAGS) $(LDFLAGS) -o $@ cpp/main.o $(LIBS)
+
+.PHONY: python
+python: cpp/libhail3.a
+	cd python && CC=$(CC) CXX=$(CXX) python3 setup.py build_ext --inplace
 
 clean:
-	rm -f main *.o
+	rm -rf cpp/libhail3.a
+	rm -f cpp/*.o
+	rm -f cpp/*.d
+	rm -f cpp/main
+	rm -f python/hail3/*.so
+	rm -f python/hail3/*.cpp
+	rm -rf python/hail3/__pycache__

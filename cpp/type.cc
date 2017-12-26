@@ -201,6 +201,13 @@ parse_type(const char *s) {
 
 BaseType::~BaseType() {}
 
+std::string
+BaseType::to_string() const {
+  std::ostringstream ss;
+  ss << *this;
+  return ss.str();
+}
+
 TMatrixTable::TMatrixTable(const rapidjson::Document &d)
   : BaseType(Kind::MATRIXTABLE),
     global_type(parse_type(d["global_schema"].GetString())),

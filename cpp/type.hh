@@ -57,6 +57,8 @@ public:
   BaseType(Kind kind) : kind(kind) {}
   virtual ~BaseType();
   
+  std::string to_string() const;
+  
   virtual std::ostream &put_to(std::ostream &out) const = 0;
 };
 
