@@ -11,7 +11,6 @@
 
 #include <rapidjson/document.h>
 
-#include "region.hh"
 #include "util.hh"
 
 class BaseType;
@@ -212,14 +211,6 @@ public:
   uint64_t size() const { return size_; }
   uint64_t alignment() const { return alignment_; }
   
-  bool is_field_missing(const Region &region, uint64_t off, uint64_t i) {
-    return !fields[i].type->required && region.load_bit(off, field_missing_bit[i]);
-  }
-  
-  bool is_field_defined(const Region &region, uint64_t off, uint64_t i) {
-    return !is_field_missing(region, off, i);
-  }
-  
   std::ostream &put_to(std::ostream &out) const;
 };
 
@@ -262,16 +253,13 @@ public:
 		   element_type->alignment());
   }
   
+  uint64_t element_offset(uint64_t n, uint64_t i) const {
+    assert(i < n);
+    return elements_offset(n) + i * element_size();
+  }
+  
   uint64_t size() const { return 8; }
   uint64_t alignment() const { return 8; }
-  
-  bool is_element_missing(const Region &region, uint64_t off, uint64_t i) {
-    return !element_type->required && region.load_bit(off + 4, i);
-  }
-  
-  bool is_element_defined(const Region &region, uint64_t off, uint64_t i) {
-    return !is_element_missing(region, off, i);
-  }
   
   std::ostream &put_to(std::ostream &out) const;
 };

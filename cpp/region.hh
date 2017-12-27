@@ -7,11 +7,10 @@
 #include <cstring>
 #include <unistd.h>
 
-#define LZ4_DISABLE_DEPRECATE_WARNINGS
-#include <lz4.h>
-
 #include <cstdio>
 
+#include "casting.hh"
+#include "type.hh"
 #include "util.hh"
 
 using offset_t = uint64_t;
@@ -118,124 +117,148 @@ public:
   void store_offset(offset_t off, offset_t o) const {
     *(offset_t *)(mem + off) = o;
   }
+  
+  bool is_field_missing(const std::shared_ptr<TStruct> &ts, uint64_t off, uint64_t i) const {
+    return !ts->fields[i].type->required && load_bit(off, ts->field_missing_bit[i]);
+  }
+  
+  bool is_field_defined(const std::shared_ptr<TStruct> &ts, uint64_t off, uint64_t i) const {
+    return !is_field_missing(ts, off, i);
+  }
+  
+  bool is_element_missing(const std::shared_ptr<TArray> &ta, uint64_t off, uint64_t i) const {
+    return !ta->element_type->required && load_bit(off + 4, i);
+  }
+  
+  bool is_element_defined(const std::shared_ptr<TArray> &ta, uint64_t off, uint64_t i) const {
+    return !is_element_missing(ta, off, i);
+  }
 };
 
 class RegionValue {
   // private:
 public:
-  const Region *region;
+  const Region &region;
   offset_t offset;
   
 public:
-  RegionValue()
-    : region(nullptr), offset(0)
-  {}
-  RegionValue(Region *region_, offset_t offset_)
+  RegionValue(const Region &region_, offset_t offset_)
     : region(region_), offset(offset_)
   {}
 };
 
-class LZ4InputBuffer {
-  // private:
+class TypedRegionValue {
 public:
-  static const int block_size = 128 * 1024;
+  const Region &region;
+  offset_t offset;
+  std::shared_ptr<Type> type;
   
-  int fd;
-  char *buf;
-  // FIXME don't store offsets store pointers
-  size_t off;
-  size_t end;
-  
-  char *comp;
-  
-  void read_fully(void *dst0, size_t n);
-  void read_block();
-  bool maybe_read_fully(void *dst0, size_t n);
-  bool maybe_read_block();
-  
-  void ensure(size_t n) {
-    if (off == end)
-      read_block();
-    assert(off + n <= end);
-  }
+  void pretty_1(std::ostream &out, uint64_t off, const std::shared_ptr<Type> &t) const;
   
 public:
-  LZ4InputBuffer(int fd_);
-  ~LZ4InputBuffer();
+  TypedRegionValue(const Region &region, offset_t offset, const std::shared_ptr<Type> &type)
+    : region(region), offset(offset), type(type)
+  {}
   
-  int8_t read_byte_() {
-    assert(off < end);
-    int8_t b = *(int8_t *)(buf + off);
-    off += 1;
-    return b;
+  bool is_field_missing(uint64_t i) {
+    return region.is_field_missing(cast<TStruct>(type), offset, i);
   }
   
-  int8_t read_byte() {
-    ensure(1);
-    int8_t b = *(int8_t *)(buf + off);
-    off += 1;
-    return b;
+  bool is_field_defined(uint64_t i) {
+    return region.is_field_defined(cast<TStruct>(type), offset, i);
   }
   
-  bool read_bool() { return read_byte() != 0; }
-  
-  float read_float() {
-    ensure(4);
-    float f = *(float *)(buf + off);
-    off += 4;
-    return f;
+  bool load_field_bool(uint64_t i) {
+    auto ts = cast<TStruct>(type);
+    assert(isa<TBoolean>(ts->fields[i].type));
+    return region.load_bool(offset + ts->field_offset[i]);
   }
   
-  double read_double() {
-    ensure(8);
-    double d = *(double *)(buf + off);
-    off += 8;
-    return d;
-  }
-  
-#define LIKELY(condition) __builtin_expect(static_cast<bool>(condition), 1)
-#define UNLIKELY(condition) __builtin_expect(static_cast<bool>(condition), 0)
-  
-  int32_t read_int() {
-    ensure(1);
-    
-    int8_t b = read_byte_();
-    int32_t x = b & 0x7f;
-    int shift = 7;
-    while ((b & 0x80) != 0) {
-      b = read_byte_();
-      x |= ((b & 0x7f) << shift);
-      shift += 7;
-    }
-    return x;
+  int32_t load_field_int(uint64_t i) {
+    auto ts = cast<TStruct>(type);
+    assert(isa<TInt32>(ts->fields[i].type));
+    return region.load_int(offset + ts->field_offset[i]);
   }
 
-  int64_t read_long() {
-    ensure(1);
-    
-    int8_t b = read_byte_();
-    int64_t x = b & 0x7f;
-    int shift = 7;
-    while ((b & 0x80) != 0) {
-      b = read_byte_();
-      x |= ((b & 0x7f) << shift);
-      shift += 7;
-    }
-    return x;
+  int64_t load_field_long(uint64_t i) {
+    auto ts = cast<TStruct>(type);
+    assert(isa<TInt64>(ts->fields[i].type));
+    return region.load_long(offset + ts->field_offset[i]);
   }
   
-  void read_bytes(Region &region, offset_t roff, size_t n) {
-    while (n > 0) {
-      if (end == off)
-        read_block();
-      int p = std::min(end - off, n);
-      assert(p > 0);
-      // FIXME call on region
-      memcpy(region.mem + roff, buf + off, p);
-      roff += p;
-      n -= p;
-      off += p;
-    }
+  float load_field_float(uint64_t i) {
+    auto ts = cast<TStruct>(type);
+    assert(isa<TFloat32>(ts->fields[i].type));
+    return region.load_float(offset + ts->field_offset[i]);
+  }
+  
+  double load_field_double(uint64_t i) {
+    auto ts = cast<TStruct>(type);
+    assert(isa<TFloat64>(ts->fields[i].type));
+    return region.load_double(offset + ts->field_offset[i]);
+  }
+  
+  uint64_t load_field_offset(uint64_t i) {
+    auto ts = cast<TStruct>(type);
+    // FIXME predicate for value as offset/pointer
+    assert(isa<TArray>(ts->fields[i].type)
+	   || isa<TString>(ts->fields[i].type));
+    return region.load_offset(offset + ts->field_offset[i]);
+  }
+  
+  bool is_element_missing(uint64_t i) {
+    return region.is_element_missing(cast<TArray>(type), offset, i);
+  }
+  
+  bool is_element_defined(uint64_t i) {
+    return region.is_element_defined(cast<TArray>(type), offset, i);
+  }
+  
+  bool load_element_bool(uint64_t i) {
+    auto ta = cast<TArray>(type);
+    assert(isa<TBoolean>(ta->element_type));
+    uint64_t n = region.load_int(offset);
+    return region.load_bool(offset + ta->element_offset(n, i));
+  }
+  
+  int32_t load_element_int(uint64_t i) {
+    auto ta = cast<TArray>(type);
+    assert(isa<TInt32>(ta->element_type));
+    uint64_t n = region.load_int(offset);
+    return region.load_int(offset + ta->element_offset(n, i));
+  }
+
+  int64_t load_element_long(uint64_t i) {
+    auto ta = cast<TArray>(type);
+    assert(isa<TInt64>(ta->element_type));
+    uint64_t n = region.load_int(offset);
+    return region.load_long(offset + ta->element_offset(n, i));
+  }
+  
+  float load_element_float(uint64_t i) {
+    auto ta = cast<TArray>(type);
+    assert(isa<TFloat32>(ta->element_type));
+    uint64_t n = region.load_int(offset);
+    return region.load_float(offset + ta->element_offset(n, i));
+  }
+  
+  double load_element_double(uint64_t i) {
+    auto ta = cast<TArray>(type);
+    assert(isa<TFloat64>(ta->element_type));
+    uint64_t n = region.load_int(offset);
+    return region.load_double(offset + ta->element_offset(n, i));
+  }
+  
+  uint64_t load_element_offset(uint64_t i) {
+    auto ta = cast<TArray>(type);
+    assert(isa<TArray>(ta->element_type)
+	   || isa<TString>(ta->element_type));
+    uint64_t n = region.load_int(offset);
+    return region.load_offset(offset + ta->element_offset(n, i));
+  }
+  
+  void pretty(std::ostream &out) const {
+    pretty_1(out, offset, type->fundamental_type());
   }
 };
 

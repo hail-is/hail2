@@ -9,20 +9,20 @@ CXX = g++
 
 INCLUDES = -Icpp
 
-CFLAGS = $(INCLUDES) -Wall -Werror -MD -fPIC
-CXXFLAGS = $(INCLUDES) -std=c++17 -Wall -Werror -MD -fPIC
+CFLAGS = $(INCLUDES) -Wall -Werror -MD -fPIC $(OPTDEBUGFLAGS)
+CXXFLAGS = $(INCLUDES) -std=c++17 -Wall -Werror -MD -fPIC $(OPTDEBUGFLAGS)
 
 LDFLAGS = -Lcpp
 
 LIBS = -lhail3 -lfmt -llz4 -lz
 
--include src/*.d
+-include cpp/*.d
 
 .PHONY: all
 all: cpp/main python
 
 #  -fno-exceptions
-cpp/libhail3.a: cpp/gzstream.o cpp/region.o cpp/type.o
+cpp/libhail3.a: cpp/gzstream.o cpp/region.o cpp/type.o cpp/matrixtable.o cpp/inputbuffer.o
 	rm -f $@
 	ar -r $@ $^
 
