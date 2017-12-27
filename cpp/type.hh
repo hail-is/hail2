@@ -7,7 +7,6 @@
 #include <vector>
 #include <ostream>
 #include <memory>
-#include <regex>
 #include <cassert>
 
 #include <rapidjson/document.h>

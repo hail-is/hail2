@@ -9,8 +9,8 @@ CXX = g++
 
 INCLUDES = -Icpp
 
-CFLAGS = $(INCLUDES) -Wall -Werror -MD
-CXXFLAGS = $(INCLUDES) -std=c++17 -Wall -Werror -MD
+CFLAGS = $(INCLUDES) -Wall -Werror -MD -fPIC
+CXXFLAGS = $(INCLUDES) -std=c++17 -Wall -Werror -MD -fPIC
 
 LDFLAGS = -Lcpp
 
