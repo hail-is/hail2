@@ -4,6 +4,8 @@
 #include <memory>
 #include <type_traits>
 
+namespace hail {
+
 template<class T, class U>
 struct propagate_const {
   using type = typename std::conditional<std::is_const<T>::value, std::add_const<U>, U>::type;
@@ -72,5 +74,7 @@ dyn_cast(std::shared_ptr<U> v) {
   else
     return nullptr;
 }
+
+} // namespace hail
 
 #endif // HAIL_CASTING_HH

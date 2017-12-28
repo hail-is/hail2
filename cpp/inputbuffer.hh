@@ -5,6 +5,8 @@
 
 #include "region.hh"
 
+namespace hail {
+
 class LZ4InputBuffer {
   // private:
 public:
@@ -111,5 +113,7 @@ public:
     }
   }
 };
+
+} // namespace hail
 
 #endif // HAIL_INPUTBUFFER_HH

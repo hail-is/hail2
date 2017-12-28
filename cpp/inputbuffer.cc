@@ -8,6 +8,8 @@
 
 #include "inputbuffer.hh"
 
+namespace hail {
+
 LZ4InputBuffer::LZ4InputBuffer()
   : fd(-1),
     off(0),
@@ -113,3 +115,5 @@ LZ4InputBuffer::maybe_read_block() {
     
   return true;
 }
+
+} // namespace hail

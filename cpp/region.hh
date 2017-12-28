@@ -13,6 +13,10 @@
 #include "type.hh"
 #include "util.hh"
 
+namespace hail {
+
+class TypedRegionValue;
+
 using offset_t = uint64_t;
 
 class Region {
@@ -118,19 +122,19 @@ public:
     *(offset_t *)(mem + off) = o;
   }
   
-  bool is_field_missing(const std::shared_ptr<TStruct> &ts, uint64_t off, uint64_t i) const {
+  bool is_field_missing(const TStruct *ts, uint64_t off, uint64_t i) const {
     return !ts->fields[i].type->required && load_bit(off, ts->field_missing_bit[i]);
   }
   
-  bool is_field_defined(const std::shared_ptr<TStruct> &ts, uint64_t off, uint64_t i) const {
+  bool is_field_defined(const TStruct *ts, uint64_t off, uint64_t i) const {
     return !is_field_missing(ts, off, i);
   }
   
-  bool is_element_missing(const std::shared_ptr<TArray> &ta, uint64_t off, uint64_t i) const {
+  bool is_element_missing(const TArray *ta, uint64_t off, uint64_t i) const {
     return !ta->element_type->required && load_bit(off + 4, i);
   }
   
-  bool is_element_defined(const std::shared_ptr<TArray> &ta, uint64_t off, uint64_t i) const {
+  bool is_element_defined(const TArray *ta, uint64_t off, uint64_t i) const {
     return !is_element_missing(ta, off, i);
   }
 };
@@ -147,55 +151,57 @@ public:
   {}
 };
 
+extern std::ostream &operator<<(std::ostream &out, const TypedRegionValue &t);
+
 class TypedRegionValue {
-public:
-  const Region &region;
+  const Region *region;
   offset_t offset;
-  std::shared_ptr<Type> type;
+  const Type *type;
   
-  void pretty_1(std::ostream &out, uint64_t off, const std::shared_ptr<Type> &t) const;
+  std::ostream &put_to(std::ostream &out, uint64_t off, const Type *t) const;
   
 public:
-  TypedRegionValue(const Region &region, offset_t offset, const std::shared_ptr<Type> &type)
-    : region(region), offset(offset), type(type)
+  TypedRegionValue() = default;
+  TypedRegionValue(const Region &region, offset_t offset, const Type *type)
+    : region(&region), offset(offset), type(type)
   {}
-  
+
   bool is_field_missing(uint64_t i) {
-    return region.is_field_missing(cast<TStruct>(type), offset, i);
+    return region->is_field_missing(cast<TStruct>(type), offset, i);
   }
   
   bool is_field_defined(uint64_t i) {
-    return region.is_field_defined(cast<TStruct>(type), offset, i);
+    return region->is_field_defined(cast<TStruct>(type), offset, i);
   }
   
   bool load_field_bool(uint64_t i) {
     auto ts = cast<TStruct>(type);
     assert(isa<TBoolean>(ts->fields[i].type));
-    return region.load_bool(offset + ts->field_offset[i]);
+    return region->load_bool(offset + ts->field_offset[i]);
   }
   
   int32_t load_field_int(uint64_t i) {
     auto ts = cast<TStruct>(type);
     assert(isa<TInt32>(ts->fields[i].type));
-    return region.load_int(offset + ts->field_offset[i]);
+    return region->load_int(offset + ts->field_offset[i]);
   }
 
   int64_t load_field_long(uint64_t i) {
     auto ts = cast<TStruct>(type);
     assert(isa<TInt64>(ts->fields[i].type));
-    return region.load_long(offset + ts->field_offset[i]);
+    return region->load_long(offset + ts->field_offset[i]);
   }
   
   float load_field_float(uint64_t i) {
     auto ts = cast<TStruct>(type);
     assert(isa<TFloat32>(ts->fields[i].type));
-    return region.load_float(offset + ts->field_offset[i]);
+    return region->load_float(offset + ts->field_offset[i]);
   }
   
   double load_field_double(uint64_t i) {
     auto ts = cast<TStruct>(type);
     assert(isa<TFloat64>(ts->fields[i].type));
-    return region.load_double(offset + ts->field_offset[i]);
+    return region->load_double(offset + ts->field_offset[i]);
   }
   
   uint64_t load_field_offset(uint64_t i) {
@@ -203,63 +209,65 @@ public:
     // FIXME predicate for value as offset/pointer
     assert(isa<TArray>(ts->fields[i].type)
 	   || isa<TString>(ts->fields[i].type));
-    return region.load_offset(offset + ts->field_offset[i]);
+    return region->load_offset(offset + ts->field_offset[i]);
   }
   
   bool is_element_missing(uint64_t i) {
-    return region.is_element_missing(cast<TArray>(type), offset, i);
+    return region->is_element_missing(cast<TArray>(type), offset, i);
   }
   
   bool is_element_defined(uint64_t i) {
-    return region.is_element_defined(cast<TArray>(type), offset, i);
+    return region->is_element_defined(cast<TArray>(type), offset, i);
   }
   
   bool load_element_bool(uint64_t i) {
     auto ta = cast<TArray>(type);
     assert(isa<TBoolean>(ta->element_type));
-    uint64_t n = region.load_int(offset);
-    return region.load_bool(offset + ta->element_offset(n, i));
+    uint64_t n = region->load_int(offset);
+    return region->load_bool(offset + ta->element_offset(n, i));
   }
   
   int32_t load_element_int(uint64_t i) {
     auto ta = cast<TArray>(type);
     assert(isa<TInt32>(ta->element_type));
-    uint64_t n = region.load_int(offset);
-    return region.load_int(offset + ta->element_offset(n, i));
+    uint64_t n = region->load_int(offset);
+    return region->load_int(offset + ta->element_offset(n, i));
   }
 
   int64_t load_element_long(uint64_t i) {
     auto ta = cast<TArray>(type);
     assert(isa<TInt64>(ta->element_type));
-    uint64_t n = region.load_int(offset);
-    return region.load_long(offset + ta->element_offset(n, i));
+    uint64_t n = region->load_int(offset);
+    return region->load_long(offset + ta->element_offset(n, i));
   }
   
   float load_element_float(uint64_t i) {
     auto ta = cast<TArray>(type);
     assert(isa<TFloat32>(ta->element_type));
-    uint64_t n = region.load_int(offset);
-    return region.load_float(offset + ta->element_offset(n, i));
+    uint64_t n = region->load_int(offset);
+    return region->load_float(offset + ta->element_offset(n, i));
   }
   
   double load_element_double(uint64_t i) {
     auto ta = cast<TArray>(type);
     assert(isa<TFloat64>(ta->element_type));
-    uint64_t n = region.load_int(offset);
-    return region.load_double(offset + ta->element_offset(n, i));
+    uint64_t n = region->load_int(offset);
+    return region->load_double(offset + ta->element_offset(n, i));
   }
   
   uint64_t load_element_offset(uint64_t i) {
     auto ta = cast<TArray>(type);
     assert(isa<TArray>(ta->element_type)
 	   || isa<TString>(ta->element_type));
-    uint64_t n = region.load_int(offset);
-    return region.load_offset(offset + ta->element_offset(n, i));
+    uint64_t n = region->load_int(offset);
+    return region->load_offset(offset + ta->element_offset(n, i));
   }
   
-  void pretty(std::ostream &out) const {
-    pretty_1(out, offset, type->fundamental_type());
-  }
+  std::ostream &put_to(std::ostream &out) const;
+  
+  std::string to_string() const;
 };
+
+} // namespace hail
 
 #endif // HAIL_REGION_HH

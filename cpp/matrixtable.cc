@@ -4,13 +4,16 @@
 
 #include "gzstream.h"
 
+#include "context.hh"
 #include "matrixtable.hh"
+
+namespace hail {
 
 // FIXME move to ... region?
 void
-decode(LZ4InputBuffer &in, Region &region, uint64_t off, const std::shared_ptr<Type> &t) {
+decode(LZ4InputBuffer &in, Region &region, uint64_t off, const Type *t) {
   switch (t->kind) {
-  case BaseType::Kind::BOOL:
+  case BaseType::Kind::BOOLEAN:
     region.store_bool(off, in.read_bool());
     break;
   case BaseType::Kind::INT32:
@@ -36,7 +39,7 @@ decode(LZ4InputBuffer &in, Region &region, uint64_t off, const std::shared_ptr<T
     break;
   case BaseType::Kind::STRUCT:
     {
-      std::shared_ptr<TStruct> ts = cast<TStruct>(t);
+      const TStruct *ts = cast<TStruct>(t);
       in.read_bytes(region, off, ts->missing_bits_size());
       for (uint64_t i = 0; i < ts->fields.size(); ++i)
 	if (region.is_field_defined(ts, off, i))
@@ -45,7 +48,7 @@ decode(LZ4InputBuffer &in, Region &region, uint64_t off, const std::shared_ptr<T
     break;
   case BaseType::Kind::ARRAY:
     {
-      std::shared_ptr<TArray> ta = cast<TArray>(t);
+      const TArray *ta = cast<TArray>(t);
       uint32_t n = in.read_int();
       uint64_t aoff = region.allocate(ta->content_alignment(),
 				      ta->content_size(n));
@@ -105,16 +108,16 @@ MatrixTableIterator::next() {
   const auto &row_impl = mt->type->row_impl_type;
   
   region.clear();
-  uint64_t offset = region.allocate(row_impl->alignment(),
-				    row_impl->size());
-  decode(in, region, offset, row_impl->fundamental_type());
+  uint64_t offset = region.allocate(row_impl->alignment,
+				    row_impl->size);
+  decode(in, region, offset, row_impl->fundamental_type);
   
   advance();
   
   return TypedRegionValue(region, offset, row_impl);
 }
 
-MatrixTable::MatrixTable(const std::string &filename)
+MatrixTable::MatrixTable(Context &c, const std::string &filename)
   : filename(filename) {
   std::string metadata_filename = filename + "/metadata.json.gz";
   igzstream is(metadata_filename.c_str());
@@ -125,23 +128,24 @@ MatrixTable::MatrixTable(const std::string &filename)
   rapidjson::Document d;
   d.Parse(metadata.c_str());
   
-  type = std::make_shared<TMatrixTable>(d);
+  type = c.matrix_table_type(d);
   n_partitions = d["n_partitions"].GetUint64();
 }
 
-MatrixTableIterator
+std::shared_ptr<MatrixTableIterator>
 MatrixTable::iterator() const {
-  return MatrixTableIterator(shared_from_this());
+  return std::make_unique<MatrixTableIterator>(shared_from_this());
 }
 
 uint64_t
 MatrixTable::count_rows() const {
   auto i = iterator();
   uint64_t nrows = 0;
-  while (i.has_next()) {
-    auto trv = i.next();
-    trv.pretty(std::cout);
+  while (i->has_next()) {
+    i->next();
     ++nrows;
   }
   return nrows;
 }
+
+} // namespace hail

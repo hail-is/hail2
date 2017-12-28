@@ -1,203 +1,24 @@
 
+#include <ctype.h>
 #include <iostream>
 #include <unordered_map>
 #include <sstream>
 #include <limits>
-#include <ctype.h>
+#include <algorithm>
 
 #include <fmt/format.h>
+#include <rapidjson/document.h>
 
 #include "casting.hh"
 #include "type.hh"
+#include "context.hh"
+
+namespace hail {
 
 std::ostream &
 operator <<(std::ostream &out, const BaseType &t) {
   t.put_to(out);
   return out;
-}
-
-class ParseError : public std::runtime_error {
-public:
-  ParseError(const std::string &what)
-    : std::runtime_error(what) {}
-  ParseError(const char *what)
-    : std::runtime_error(what) {}
-};
-
-enum Token {
-  BOOLEAN = std::numeric_limits<char>::max() + 1,
-  INT32, INT64, FLOAT32, FLOAT64, STRING, ARRAY, SET, STRUCT, EMPTY,
-  CALL, LOCUS, ALTALLELE, VARIANT,
-  ID
-};
-
-class TypeLexer {
-  // FIXME
-  static std::unordered_map<std::string, int> keywords;
-  
-  const char *s;
-  std::string text_;
-  
-public:
-  TypeLexer(const char *s)
-    : s(s) {}
-  
-  std::string text() const { return text_; }
-  std::string token_description(int t) const;
-  
-  int lex();
-  void expect(int expected);
-};
-
-std::unordered_map<std::string, int> TypeLexer::keywords = {
-  { "Boolean", BOOLEAN },
-  { "Int32", INT32 },
-  { "Int64", INT64 },
-  { "Float32", FLOAT32 },
-  { "Float64", FLOAT64 },
-  { "String", STRING },
-  { "Array", ARRAY },
-  { "Set", SET },
-  { "Struct", STRUCT },
-  { "Empty", EMPTY },
-  { "Call", CALL },
-  { "Locus", LOCUS },
-  { "AltAllele", ALTALLELE },
-  { "Variant", VARIANT },
-};
-
-int
-TypeLexer::lex() {
-  while (isspace(*s))
-    ++s;
-  
-  if (isalpha(*s) || *s == '_') {
-    const char *b = s;
-    while (isalnum(*s) || *s == '_')
-      ++s;
-    
-    text_.assign(b, s);
-    auto i = keywords.find(text_);
-    if (i != keywords.cend())
-      return i->second;
-    
-    return ID;
-  }
-
-  char c = *s;
-  ++s;
-  return c;
-}
-
-std::string
-TypeLexer::token_description(int t) const {
-  switch (t) {
-  case BOOLEAN:  return "Boolean";
-  case INT32:  return "Int32";
-  case INT64:  return "Int64";
-  case FLOAT32:  return "Float32";
-  case FLOAT64:  return "Float64";
-  case STRING:  return "String";
-  case ARRAY:  return "Array";
-  case SET:  return "Set";
-  case STRUCT:  return "Struct";
-  case EMPTY:  return "Empty";
-  case ID: return "identifier";
-  case '\0': return "end of input";
-  default:
-    char buf[2] = { (char)t, '\0' };
-    return buf;
-  }
-}
-
-void
-TypeLexer::expect(int expected) {
-  int found = lex();
-  if (found != expected)
-    throw ParseError(fmt::format("expected {}", token_description(expected)));
-}
-
-static std::shared_ptr<Type>
-parse_type(TypeLexer &lexer) {
-  int t = lexer.lex();
-  bool required = false;
-  if (t == '!') {
-    required = true;
-    t = lexer.lex();
-  }
-  switch(t) {
-  case BOOLEAN:
-    return std::make_shared<TBoolean>(required);
-  case INT32:
-    return std::make_shared<TInt32>(required);
-  case INT64:
-    return std::make_shared<TInt64>(required);
-  case FLOAT32:
-    return std::make_shared<TFloat32>(required);
-  case FLOAT64:
-    return std::make_shared<TFloat64>(required);
-  case STRING:
-    return std::make_shared<TString>(required);
-  case ARRAY: {
-    lexer.expect('[');
-    auto element_type = parse_type(lexer);
-    lexer.expect(']');
-    return std::make_shared<TArray>(element_type, required);
-  }
-  case SET: {
-    lexer.expect('[');
-    auto element_type = parse_type(lexer);
-    lexer.expect(']');
-    return std::make_shared<TSet>(element_type, required);
-  }
-  case STRUCT: {
-    lexer.expect('{');
-    t = lexer.lex();
-    std::vector<Field> fields;
-    while (t == ID) {
-      std::string name = lexer.text();
-      lexer.expect(':');
-      auto type = parse_type(lexer);
-      fields.push_back(Field { name, type });
-      t = lexer.lex();
-      if (t == ',')
-	t = lexer.lex();
-    }
-    if (t != '}')
-      throw ParseError("expected }");
-    return std::make_shared<TStruct>(fields, required);
-  }
-  case EMPTY:
-    return std::make_shared<TStruct>(std::vector<Field>(), required);
-  case CALL:
-    return std::make_shared<TCall>(required);
-  case LOCUS: {
-    lexer.expect('(');
-    lexer.expect(ID);
-    std::string gr = lexer.text();
-    lexer.expect(')');
-    return std::make_shared<TLocus>(gr, required);
-  }
-  case ALTALLELE:
-    return std::make_shared<TAltAllele>(required);
-  case VARIANT: {
-    lexer.expect('(');
-    lexer.expect(ID);
-    std::string gr = lexer.text();
-    lexer.expect(')');
-    return std::make_shared<TVariant>(gr, required);
-  }
-  default:
-    throw ParseError(fmt::format("parse error at {}", lexer.text()));
-  }
-}
-
-std::shared_ptr<Type>
-parse_type(const char *s) {
-  TypeLexer lexer(s);
-  auto t = parse_type(lexer);
-  lexer.expect('\0');
-  return t;
 }
 
 BaseType::~BaseType() {}
@@ -209,29 +30,34 @@ BaseType::to_string() const {
   return ss.str();
 }
 
-TMatrixTable::TMatrixTable(const rapidjson::Document &d)
+TMatrixTable::TMatrixTable(Context &c,
+			   const Type *global_type,
+			   const Type *col_key_type,
+			   const Type *col_type,
+			   const Type *row_key_type,
+			   const Type *row_type,
+			   const Type *entry_type)
   : BaseType(Kind::MATRIXTABLE),
-    global_type(parse_type(d["global_schema"].GetString())),
-    col_key_type(parse_type(d["sample_schema"].GetString())),
-    col_type(parse_type(d["sample_annotation_schema"].GetString())),
-    row_key_type(parse_type(d["variant_schema"].GetString())),
-    row_type(parse_type(d["variant_annotation_schema"].GetString())),
-    entry_type(parse_type(d["genotype_schema"].GetString())),
-    row_impl_type(std::make_shared<TStruct>(
-		    std::vector<Field> {
-		      { "pk", row_partition_key_type() },
-			{ "v", row_key_type },
-			  { "va", row_type },
-			    { "gs", std::make_shared<TArray>(entry_type, false) }
-		    },
-		    false)) {}
-
-std::shared_ptr<Type>
-TMatrixTable::row_partition_key_type() const {
+    global_type(global_type),
+    col_key_type(col_key_type),
+    col_type(col_type),
+    row_key_type(row_key_type),
+    row_type(row_type),
+    entry_type(entry_type)
+{
+  const Type *row_pk_type;
   if (auto tv = dyn_cast<TVariant>(row_key_type))
-    return std::make_shared<TLocus>(tv->gr, tv->required);
+    row_pk_type = c.locus_type(tv->gr, tv->required);
   else
-    return row_key_type;
+    row_pk_type = row_key_type;
+  
+  row_impl_type = c.struct_type(std::vector<Field> {
+      { "pk", row_pk_type },
+	{ "v", row_key_type },
+	  { "va", row_type },
+	    { "gs", c.array_type(entry_type, false) }
+    },
+    false);
 }
 
 std::ostream &
@@ -251,6 +77,24 @@ TMatrixTable::put_to(std::ostream &out) const {
   return out;
 }
 
+Type::Type(Kind kind, bool required)
+  : BaseType(kind), required(required) {
+}
+
+Type::Type(Kind kind, bool required, uint64_t alignment, uint64_t size)
+  : BaseType(kind), required(required),
+    alignment(alignment), size(size) {
+}
+
+Type::Type(Kind kind, bool required, uint64_t alignment, uint64_t size, const Type *fundamental_type)
+  : BaseType(kind), required(required),
+    alignment(alignment), size(size),
+    fundamental_type(fundamental_type) {
+}
+
+TBoolean::TBoolean(bool required)
+  : Type(Kind::BOOLEAN, required, 1, 1, this) {}
+
 std::ostream &
 TBoolean::put_to(std::ostream &out) const {
   if (required)
@@ -258,6 +102,9 @@ TBoolean::put_to(std::ostream &out) const {
   out << "Boolean";
   return out;
 }
+
+TInt32::TInt32(bool required)
+  : Type(Kind::INT32, required, 4, 4, this) {}
 
 std::ostream &
 TInt32::put_to(std::ostream &out) const {
@@ -267,6 +114,9 @@ TInt32::put_to(std::ostream &out) const {
   return out;
 }
 
+TInt64::TInt64(bool required)
+  : Type(Kind::INT64, required, 8, 8, this) {}
+
 std::ostream &
 TInt64::put_to(std::ostream &out) const {
   if (required)
@@ -274,6 +124,9 @@ TInt64::put_to(std::ostream &out) const {
   out << "Int64";
   return out;
 }
+
+TFloat32::TFloat32(bool required)
+  : Type(Kind::INT32, required, 4, 4, this) {}
 
 std::ostream &
 TFloat32::put_to(std::ostream &out) const {
@@ -283,6 +136,9 @@ TFloat32::put_to(std::ostream &out) const {
   return out;
 }
 
+TFloat64::TFloat64(bool required)
+  : Type(Kind::FLOAT64, required, 8, 8, this) {}
+
 std::ostream &
 TFloat64::put_to(std::ostream &out) const {
   if (required)
@@ -290,6 +146,9 @@ TFloat64::put_to(std::ostream &out) const {
   out << "Float64";
   return out;
 }
+
+TString::TString(bool required)
+  : Type(Kind::STRING, required, 8, 8, this) {}
 
 std::ostream &
 TString::put_to(std::ostream &out) const {
@@ -299,13 +158,12 @@ TString::put_to(std::ostream &out) const {
   return out;
 }
 
-TStruct::TStruct(const std::vector<Field> &fields, bool required)
+TStruct::TStruct(Context &c, const std::vector<Field> &fields, bool required)
   : Type(Kind::STRUCT, required),
     fields(fields),
     field_offset(fields.size()),
     n_nonrequired_fields(0),
-    field_missing_bit(fields.size())
-{
+    field_missing_bit(fields.size()) {
   // FIXME incompatible with JVM code
   for (uint64_t i = 0; i < fields.size(); ++i) {
     if (!fields[i].type->required) {
@@ -314,20 +172,29 @@ TStruct::TStruct(const std::vector<Field> &fields, bool required)
     }
   }
   
-  uint64_t align = 1;
-  uint64_t off = missing_bits_size();
+  alignment = 1;
+  size = missing_bits_size();
   for (uint64_t i = 0; i < fields.size(); ++i) {
-    uint64_t a = fields[i].type->alignment();
+    uint64_t a = fields[i].type->alignment;
     
-    off = alignto(off, a);
-    field_offset[i] = off;
-    off += fields[i].type->size();
+    size = alignto(size, a);
+    field_offset[i] = size;
+    size += fields[i].type->size;
     
-    if (a > align)
-      align = a;
+    if (a > alignment)
+      alignment = a;
   }
-  alignment_ = align;
-  size_ = off;
+  
+  if (std::all_of(fields.begin(), fields.end(),
+		  [](const Field &f) { return f.type->is_fundamental(); }))
+    fundamental_type = this;
+  else {
+    std::vector<Field> fundamental_fields(fields.size());
+    std::transform(fields.begin(), fields.end(),
+		   fundamental_fields.begin(),
+		   [](const Field &f) { return Field { f.name, f.type->fundamental_type }; });
+    fundamental_type = c.struct_type(fundamental_fields, required);
+  }
 }
 
 std::ostream &
@@ -341,11 +208,30 @@ TStruct::put_to(std::ostream &out) const {
   return out;
 }
 
+TArray::TArray(Context &c, const Type *element_type, bool required)
+  : Type(Kind::ARRAY, required, 8, 8),
+    element_type(element_type) {
+  if (element_type->is_fundamental())
+    fundamental_type = this;
+  else
+    fundamental_type = c.array_type(element_type->fundamental_type, required);
+}
+
 std::ostream &
 TArray::put_to(std::ostream &out) const {
   if (required)
     out << "!";
   return out << "Array[" << *element_type << "]";
+}
+
+TComplex::TComplex(const Type *representation, Kind kind, bool required)
+  : Type(kind, required, representation->alignment, representation->size, representation->fundamental_type),
+    representation(representation) {}
+
+TSet::TSet(Context &c, const Type *element_type, bool required)
+  : TComplex(c.array_type(element_type, required), Kind::SET, required),
+    element_type(element_type)
+{
 }
 
 std::ostream &
@@ -355,6 +241,9 @@ TSet::put_to(std::ostream &out) const {
   return out << "Set[" << *element_type << "]";
 }
 
+TCall::TCall(Context &c, bool required)
+  : TComplex(c.int32_type(required), Kind::CALL, required) {}
+
 std::ostream &
 TCall::put_to(std::ostream &out) const {
   if (required)
@@ -362,6 +251,10 @@ TCall::put_to(std::ostream &out) const {
   out << "Call";
   return out;
 }
+
+TLocus::TLocus(Context &c, const std::string &gr, bool required)
+  : TComplex(c.locus_representation(required), Kind::LOCUS, required),
+    gr(gr) {}
 
 std::ostream &
 TLocus::put_to(std::ostream &out) const {
@@ -371,6 +264,9 @@ TLocus::put_to(std::ostream &out) const {
   return out;
 }
 
+TAltAllele::TAltAllele(Context &c, bool required)
+  : TComplex(c.alt_allele_representation(required), Kind::ALTALLELE, required) {}
+
 std::ostream &
 TAltAllele::put_to(std::ostream &out) const {
   if (required)
@@ -379,6 +275,10 @@ TAltAllele::put_to(std::ostream &out) const {
   return out;
 }
 
+TVariant::TVariant(Context &c, const std::string &gr, bool required)
+  : TComplex(c.variant_representation(required), Kind::VARIANT, required),
+    gr(gr) {}
+
 std::ostream &
 TVariant::put_to(std::ostream &out) const {
   if (required)
@@ -386,3 +286,5 @@ TVariant::put_to(std::ostream &out) const {
   out << "Variant(" << gr << ")";
   return out;
 }
+
+} // namespace hail

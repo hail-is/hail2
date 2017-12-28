@@ -7,10 +7,12 @@
 
 #include <memory>
 
-#include "type.hh"
 #include "region.hh"
 #include "inputbuffer.hh"
 
+namespace hail {
+
+class TMatrixTable;
 class MatrixTable;
 
 class MatrixTableIterator {
@@ -35,15 +37,18 @@ public:
 class MatrixTable : public std::enable_shared_from_this<MatrixTable> {
 public:
   std::string filename;
-  std::shared_ptr<TMatrixTable> type;
+  const TMatrixTable *type;
   uint64_t n_partitions;
   
 public:
-  MatrixTable(const std::string &filename);
+  MatrixTable(Context &c, const std::string &filename);
   
-  MatrixTableIterator iterator() const;
+  std::shared_ptr<MatrixTableIterator> iterator() const;
   
   uint64_t count_rows() const;
 };
 
 #endif // HAIL_MATRIXTABLE_HH
+
+} // namespace hail
+  

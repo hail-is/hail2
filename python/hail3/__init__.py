@@ -1,3 +1,3 @@
-from hail3.types import TInt32
+from hail3.types import *
 
-__all__ = ['TInt32']
+__all__ = ['Context', 'MatrixTable', 'TInt32']

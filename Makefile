@@ -16,13 +16,13 @@ LDFLAGS = -Lcpp
 
 LIBS = -lhail3 -lfmt -llz4 -lz
 
--include cpp/*.d
-
 .PHONY: all
 all: cpp/main python
 
+-include cpp/*.d
+
 #  -fno-exceptions
-cpp/libhail3.a: cpp/gzstream.o cpp/region.o cpp/type.o cpp/matrixtable.o cpp/inputbuffer.o
+cpp/libhail3.a: cpp/gzstream.o cpp/region.o cpp/type.o cpp/matrixtable.o cpp/inputbuffer.o cpp/context.o
 	rm -f $@
 	ar -r $@ $^
 
