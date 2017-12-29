@@ -1,5 +1,6 @@
 #ifndef HAIL_MATRIXTABLE_HH
 #define HAIL_MATRIXTABLE_HH
+#pragma once
 
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -43,6 +44,7 @@ public:
 public:
   MatrixTable(Context &c, const std::string &filename);
   
+  // FIXME unique_ptr, but had trouble with unique_ptr in Cython
   std::shared_ptr<MatrixTableIterator> iterator() const;
   
   uint64_t count_rows() const;

@@ -1,5 +1,6 @@
 #ifndef HAIL_CASTING_HH
 #define HAIL_CASTING_HH
+#pragma once
 
 #include <memory>
 #include <type_traits>

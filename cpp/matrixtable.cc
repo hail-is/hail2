@@ -1,4 +1,5 @@
 
+#include <fmt/format.h>
 #include <rapidjson/rapidjson.h>
 #include <rapidjson/document.h>
 
@@ -53,12 +54,18 @@ decode(LZ4InputBuffer &in, Region &region, uint64_t off, const Type *t) {
       uint64_t aoff = region.allocate(ta->content_alignment(),
 				      ta->content_size(n));
       region.store_int(aoff, n);
-      in.read_bytes(region, aoff + 4, ta->missing_bits_size(n));
       uint64_t elements_off = aoff + ta->elements_offset(n);
       uint64_t element_size = ta->element_size();
-      for (uint64_t i = 0; i < n; ++i)
-	if (region.is_element_defined(ta, aoff, i))
-	  decode(in, region, elements_off + i*element_size, ta->element_type);
+      if (ta->element_type->kind  == BaseType::Kind::INT32
+	  && ta->element_type->required) {
+	for (uint64_t i = 0; i < n; ++i)
+	  region.store_int(elements_off + i*element_size, in.read_int());
+      } else {
+	in.read_bytes(region, aoff + 4, ta->missing_bits_size(n));
+	for (uint64_t i = 0; i < n; ++i)
+	  if (region.is_element_defined(ta, aoff, i))
+	    decode(in, region, elements_off + i*element_size, ta->element_type);
+      }
       region.store_offset(off, aoff);
     }
     break;
@@ -121,6 +128,8 @@ MatrixTable::MatrixTable(Context &c, const std::string &filename)
   : filename(filename) {
   std::string metadata_filename = filename + "/metadata.json.gz";
   igzstream is(metadata_filename.c_str());
+  if (!is.rdbuf()->is_open() || is.fail())
+    throw std::runtime_error(fmt::format("could not open file: {}", metadata_filename));
   std::string metadata;
   metadata.assign(std::istreambuf_iterator<char>(is),
 		  std::istreambuf_iterator<char>());

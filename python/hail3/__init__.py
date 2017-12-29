@@ -1,3 +1,3 @@
 from hail3.types import *
 
-__all__ = ['Context', 'MatrixTable', 'TInt32']
+__all__ = ['Context', 'MatrixTable', 'BaseType', 'Type', 'TMatrixTable']

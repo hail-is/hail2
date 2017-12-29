@@ -1,7 +1,7 @@
 
-# OPTDEBUGFLAGS = -O3 -DNDEBUG -march=native
+OPTDEBUGFLAGS = -O3 -DNDEBUG -march=native
 # OPTDEBUGFLAGS = -O -DNDEBUG -pg
-OPTDEBUGFLAGS = -g
+# OPTDEBUGFLAGS = -g
 # OPTDEBUGFLAGS = -g -pg
 
 CC = gcc
@@ -29,8 +29,10 @@ cpp/libhail3.a: cpp/gzstream.o cpp/region.o cpp/type.o cpp/matrixtable.o cpp/inp
 cpp/main: cpp/main.o cpp/libhail3.a
 	g++ $(CXXFLAGS) $(LDFLAGS) -o $@ cpp/main.o $(LIBS)
 
+# FIXME get cython to track libhail3.a dependency
 .PHONY: python
 python: cpp/libhail3.a
+	rm -f python/hail3/*.so
 	cd python && CC=$(CC) CXX=$(CXX) python3 setup.py build_ext --inplace
 
 clean:

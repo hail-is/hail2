@@ -1,5 +1,6 @@
 #ifndef HAIL_REGION_HH
 #define HAIL_REGION_HH
+#pragma once
 
 #include <cassert>
 #include <cstdint>
@@ -54,7 +55,7 @@ public:
   offset_t allocate(offset_t alignment, offset_t n) {
     offset_t p = alignto(end, alignment);
     size_t new_end = p + n;
-    if (capacity < new_end)
+    if (UNLIKELY(capacity < new_end))
       grow(new_end);
     end = new_end;
     assert(end <= capacity);

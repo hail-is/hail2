@@ -1,8 +1,8 @@
 #ifndef HAIL_INPUTBUFFER_HH
 #define HAIL_INPUTBUFFER_HH
-
 #pragma once
 
+#include "util.hh"
 #include "region.hh"
 
 namespace hail {
@@ -20,13 +20,14 @@ public:
   
   char *comp;
   
+  // stats
+  uint64_t ninput, noutput;
+  
   void read_fully(void *dst0, size_t n);
   void read_block();
-  bool maybe_read_fully(void *dst0, size_t n);
-  bool maybe_read_block();
   
   void ensure(size_t n) {
-    if (off == end)
+    if (UNLIKELY(off == end))
       read_block();
     assert(off + n <= end);
   }
@@ -68,35 +69,18 @@ public:
     return d;
   }
   
-#define LIKELY(condition) __builtin_expect(static_cast<bool>(condition), 1)
-#define UNLIKELY(condition) __builtin_expect(static_cast<bool>(condition), 0)
-  
   int32_t read_int() {
-    ensure(1);
-    
-    int8_t b = read_byte_();
-    int32_t x = b & 0x7f;
-    int shift = 7;
-    while ((b & 0x80) != 0) {
-      b = read_byte_();
-      x |= ((b & 0x7f) << shift);
-      shift += 7;
-    }
-    return x;
+    ensure(4);
+    int32_t i = *(int32_t *)(buf + off);
+    off += 4;
+    return i;
   }
 
   int64_t read_long() {
-    ensure(1);
-    
-    int8_t b = read_byte_();
-    int64_t x = b & 0x7f;
-    int shift = 7;
-    while ((b & 0x80) != 0) {
-      b = read_byte_();
-      x |= ((b & 0x7f) << shift);
-      shift += 7;
-    }
-    return x;
+    ensure(8);
+    int64_t l = *(int64_t *)(buf + off);
+    off += 8;
+    return l;
   }
   
   void read_bytes(Region &region, offset_t roff, size_t n) {
