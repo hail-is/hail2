@@ -8,7 +8,7 @@ from libc.stdint cimport uint64_t
 
 cdef extern from "type.hh" namespace "hail":
     cdef cppclass BaseTypeKind "hail::BaseType::Kind":
-        pass
+        bool operator==(BaseTypeKind that)
 
     cdef cppclass BaseType:
         BaseTypeKind kind
@@ -70,7 +70,7 @@ cdef extern from "type.hh" namespace "hail":
     cdef cppclass TVariant(TComplex):
         string gr
 
-cdef extern from "type.hh" namespace "hail::BaseType":
+cdef extern from "type.hh" namespace "hail::BaseType::Kind":
     cdef BaseTypeKind MATRIXTABLE
     cdef BaseTypeKind TABLE
     cdef BaseTypeKind MATRIX

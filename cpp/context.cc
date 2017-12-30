@@ -110,6 +110,18 @@ TypeLexer::expect(int expected) {
 
 Context *Context::context;
 
+template<typename T> const T *
+Context::intern(const T *t) {
+  const BaseType *bt = static_cast<const BaseType *>(t);
+  auto p = types.insert(bt);
+  if (p.second)
+    return t;
+  else {
+    delete t;
+    return static_cast<const T *>(*p.first);
+  }
+}
+
 Context::Context()
   : boolean_required(true), boolean_optional(false),
     int32_required(true), int32_optional(false),

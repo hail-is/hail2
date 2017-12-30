@@ -3,14 +3,17 @@
 from libcpp cimport bool
 from libcpp.memory cimport shared_ptr, make_shared
 from libcpp.string cimport string
+from libc.stdint cimport uintptr_t
 
 from hail3 cimport libhail
 
 cdef class Context(object):
     cdef libhail.Context *context
+    cdef dict _types
 
     def __cinit__(self):
         self.context = new libhail.Context()
+        self._types = {}
 
         print('''Welcome to
       __  __      <>_______
@@ -20,31 +23,42 @@ cdef class Context(object):
   /_/ /_/\__,_/_/_//____/   version TODO''')
 
     def read(self, filename):
-      return MatrixTable(self, filename)
+        return MatrixTable(self, filename)
+  
+    cdef _get_type(self, const libhail.BaseType *ct):
+        cdef uintptr_t h = <uintptr_t>ct
+        if h in self._types:
+            return self._types[h]
+        if ct.kind == libhail.MATRIXTABLE:
+            t = TMatrixTable_init(<const libhail.TMatrixTable *>ct)
+        else:
+            t = Type_init(<const libhail.Type *>ct)
+        self._types[h] = t
+        return t
 
     def boolean_type(self, bool required):
-      return Type_init(self.context.boolean_type(required))
+        return self._get_type(self.context.boolean_type(required))
 
     def int32_type(self, bool required):
-      return Type_init(self.context.int32_type(required))
+        return self._get_type(self.context.int32_type(required))
 
     def int64_type(self, bool required):
-      return Type_init(self.context.int64_type(required))
+        return self._get_type(self.context.int64_type(required))
 
     def float32_type(self, bool required):
-      return Type_init(self.context.float32_type(required))
+        return self._get_type(self.context.float32_type(required))
 
     def float64_type(self, bool required):
-      return Type_init(self.context.float64_type(required))
+        return self._get_type(self.context.float64_type(required))
 
     def string_type(self, bool required):
-      return Type_init(self.context.string_type(required))
+        return self._get_type(self.context.string_type(required))
 
     def call_type(self, bool required):
-      return Type_init(self.context.call_type(required))
+        return self._get_type(self.context.call_type(required))
 
     def alt_allele_type(self, bool required):
-      return Type_init(self.context.alt_allele_type(required))
+        return self._get_type(self.context.alt_allele_type(required))
 
 cdef TypedRegionValue_init(libhail.TypedRegionValue ctrv):
     trv = TypedRegionValue()
@@ -75,12 +89,12 @@ cdef class MatrixTableIterator(object):
             raise StopIteration()
 
 cdef class MatrixTable(object):
+    cdef Context context
     cdef shared_ptr[libhail.MatrixTable] mt
-    cdef TMatrixTable _typ
 
     def __init__(self, Context c, str filename):
+        self.context = c
         self.mt = make_shared[libhail.MatrixTable](c.context[0], <string>filename.encode('ascii'))
-        self._typ = TMatrixTable_init(self.mt.get().typ)
 
     # FIXME leaves file open
     def rows(self):
@@ -91,18 +105,18 @@ cdef class MatrixTable(object):
 
     @property
     def typ(self):
-        return self._typ
+        return self.context._get_type(self.mt.get().typ)
 
 cdef class BaseType:
-    cdef const hail.BaseType ct
+    cdef const libhail.BaseType *ct
 
     def __hash__(self):
-        return <intptr_t>self.ct
+        return <uintptr_t>self.ct
 
-    def __eq__(self, that):
-        return ct == that.ct
+    def __eq__(self, BaseType that):
+        return self.ct == that.ct
 
-    def __repr__(self):
+    def __repr__(BaseType self):
         return self.ct.to_string().decode('ascii')
 
 cdef Type_init(const libhail.Type *ct):

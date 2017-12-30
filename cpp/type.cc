@@ -23,6 +23,16 @@ operator<<(std::ostream &out, const BaseType &t) {
 
 BaseType::~BaseType() {}
 
+std::size_t
+BaseType::hash() const {
+  return std::hash<Kind>{}(kind);
+}
+  
+bool
+BaseType::operator==(const BaseType &that) const {
+  return kind == that.kind;
+}
+
 std::string
 BaseType::to_string() const {
   std::ostringstream ss;
@@ -60,6 +70,18 @@ TMatrixTable::TMatrixTable(Context &c,
     false);
 }
 
+std::size_t
+TMatrixTable::hash() const {
+  std::size_t h = BaseType::hash();
+  hash_combine<BaseType>(h, *global_type);
+  hash_combine<BaseType>(h, *col_key_type);
+  hash_combine<BaseType>(h, *col_type);
+  hash_combine<BaseType>(h, *row_key_type);
+  hash_combine<BaseType>(h, *row_type);
+  hash_combine<BaseType>(h, *entry_type);
+  return h;
+}
+
 bool
 TMatrixTable::operator==(const BaseType &that) const {
   auto *that2 = dyn_cast<TMatrixTable>(&that);
@@ -68,7 +90,8 @@ TMatrixTable::operator==(const BaseType &that) const {
     && *col_key_type == *that2->col_key_type
     && *col_type == *that2->col_type
     && *row_key_type == *that2->row_key_type
-    && *row_type == *that2->row_type;
+    && *row_type == *that2->row_type
+    && *entry_type == *that2->entry_type;
 }
 
 std::ostream &
@@ -101,6 +124,13 @@ Type::Type(Kind kind, bool required, uint64_t alignment, uint64_t size, const Ty
   : BaseType(kind), required(required),
     alignment(alignment), size(size),
     fundamental_type(fundamental_type) {
+}
+
+std::size_t
+Type::hash() const {
+  std::size_t h = BaseType::hash();
+  hash_combine(h, required);
+  return h;
 }
 
 bool
@@ -175,6 +205,13 @@ TString::put_to(std::ostream &out) const {
   return out;
 }
 
+std::size_t
+Field::hash() const {
+  std::size_t h = std::hash<std::string>{}(name);
+  hash_combine<BaseType>(h, *type);
+  return h;
+}
+
 bool
 Field::operator==(const Field &f) const {
   return name == f.name
@@ -220,6 +257,13 @@ TStruct::TStruct(Context &c, const std::vector<Field> &fields, bool required)
   }
 }
 
+std::size_t
+TStruct::hash() const {
+  std::size_t h = Type::hash();
+  hash_combine<std::vector<Field>>(h, fields);
+  return h;
+}
+
 bool
 TStruct::operator==(const BaseType &that) const {
   return Type::operator==(that)
@@ -246,6 +290,13 @@ TArray::TArray(Context &c, const Type *element_type, bool required)
     fundamental_type = c.array_type(element_type->fundamental_type, required);
 }
 
+std::size_t
+TArray::hash() const {
+  std::size_t h = Type::hash();
+  hash_combine<BaseType>(h, *element_type);
+  return h;
+}
+
 bool
 TArray::operator==(const BaseType &that) const {
   return Type::operator==(that)
@@ -267,6 +318,13 @@ TSet::TSet(Context &c, const Type *element_type, bool required)
   : TComplex(c.array_type(element_type, required), Kind::SET, required),
     element_type(element_type)
 {
+}
+
+std::size_t
+TSet::hash() const {
+  std::size_t h = Type::hash();
+  hash_combine<BaseType>(h, *element_type);
+  return h;
 }
 
 bool
@@ -297,6 +355,13 @@ TLocus::TLocus(Context &c, const std::string &gr, bool required)
   : TComplex(c.locus_representation(required), Kind::LOCUS, required),
     gr(gr) {}
 
+std::size_t
+TLocus::hash() const {
+  std::size_t h = Type::hash();
+  hash_combine(h, gr);
+  return h;
+}
+
 bool
 TLocus::operator==(const BaseType &that) const {
   return Type::operator==(that)
@@ -325,6 +390,13 @@ TAltAllele::put_to(std::ostream &out) const {
 TVariant::TVariant(Context &c, const std::string &gr, bool required)
   : TComplex(c.variant_representation(required), Kind::VARIANT, required),
     gr(gr) {}
+
+std::size_t
+TVariant::hash() const {
+  std::size_t h = Type::hash();
+  hash_combine(h, gr);
+  return h;
+}
 
 bool
 TVariant::operator==(const BaseType &that) const {

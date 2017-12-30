@@ -23,13 +23,13 @@ class Context {
   const TCall *call_required, *call_optional;
   const TAltAllele *alt_allele_required, *alt_allele_optional;
   
-  // FIXME
-  // std::unordered_set<const BaseType *, hash_type, type_equal_to> type_intern;
+  std::unordered_set<const BaseType *,
+		     hash_points_to<BaseType>,
+		     equal_to_points_to<BaseType>> types;
   
   // FIXME sublcass of BaseType
   // FIXME actually intern
-  template<typename T>
-  const T *intern(const T *t) { return t; }
+  template<typename T> const T *intern(const T *t);
   
 public:
   Context();

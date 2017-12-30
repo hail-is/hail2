@@ -62,7 +62,8 @@ public:
   
   std::string to_string() const;
   
-  virtual bool operator==(const BaseType &that) const = 0;
+  virtual std::size_t hash() const;
+  virtual bool operator==(const BaseType &that) const;
   
   virtual std::ostream &put_to(std::ostream &out) const = 0;
 };
@@ -92,6 +93,7 @@ public:
   // FIXME name
   const Type *row_impl_type;
 
+  std::size_t hash() const;
   bool operator==(const BaseType &that) const;
   
   std::ostream &put_to(std::ostream &out) const;
@@ -113,6 +115,7 @@ public:
   
   const Type *fundamental_type;
   
+  std::size_t hash() const;
   bool operator==(const BaseType &that) const;
   
   bool is_fundamental() const { return fundamental_type == this; }
@@ -192,6 +195,7 @@ public:
   std::string name;
   const Type *type;
   
+  std::size_t hash() const;
   bool operator==(const Field &f) const;
 };
 
@@ -212,6 +216,7 @@ public:
   
   uint64_t missing_bits_size() const { return (n_nonrequired_fields + 7) >> 3; }
   
+  std::size_t hash() const;
   bool operator==(const BaseType &that) const;
   
   std::ostream &put_to(std::ostream &out) const;
@@ -256,6 +261,7 @@ public:
     return elements_offset(n) + i * element_size();
   }
   
+  std::size_t hash() const;
   bool operator==(const BaseType &that) const;
   
   std::ostream &put_to(std::ostream &out) const;
@@ -279,6 +285,7 @@ public:
   
   const Type *element_type;
   
+  std::size_t hash() const;
   bool operator==(const BaseType &that) const;
   
   std::ostream &put_to(std::ostream &out) const;
@@ -305,6 +312,7 @@ public:
   
   std::string gr;
 
+  std::size_t hash() const;
   bool operator==(const BaseType &that) const;
   
   std::ostream &put_to(std::ostream &out) const;
@@ -331,11 +339,28 @@ public:
   
   const std::string gr;
   
+  std::size_t hash() const;
   bool operator==(const BaseType &that) const;
   
   std::ostream &put_to(std::ostream &out) const;
 };
 
 } // namespace hail
+
+namespace std {
+
+template<> struct hash<hail::BaseType> {
+  std::size_t operator()(const hail::BaseType &t) {
+    return t.hash();
+  }
+};
+
+template<> struct hash<hail::Field> {
+  std::size_t operator()(const hail::Field &t) {
+    return t.hash();
+  }
+};
+
+}
 
 #endif // HAIL_TYPE_HH
