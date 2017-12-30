@@ -1,7 +1,7 @@
 
-OPTDEBUGFLAGS = -O3 -DNDEBUG -march=native
+# OPTDEBUGFLAGS = -O3 -DNDEBUG -march=native
 # OPTDEBUGFLAGS = -O -DNDEBUG -pg
-# OPTDEBUGFLAGS = -g
+OPTDEBUGFLAGS = -g
 # OPTDEBUGFLAGS = -g -pg
 
 CC = gcc

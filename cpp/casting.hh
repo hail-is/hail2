@@ -9,12 +9,12 @@ namespace hail {
 
 template<class T, class U>
 struct propagate_const {
-  using type = typename std::conditional<std::is_const<T>::value, std::add_const<U>, U>::type;
+  using type = typename std::conditional<std::is_const<T>::value, typename std::add_const<U>::type, U>::type;
 };
 
 template<class T, class U>
 struct propagate_volatile {
-  using type = typename std::conditional<std::is_volatile<T>::value, std::add_volatile<U>, U>::type;
+  using type = typename std::conditional<std::is_volatile<T>::value, typename std::add_volatile<U>::type, U>::type;
 };
 
 template<class T, class U>
@@ -25,6 +25,11 @@ struct propagate_cv {
 template<class T> bool
 isa(const typename T::Base *v) {
   return v->kind == T::kindof;
+}
+
+template<class T> bool
+isa(const typename T::Base &v) {
+  return v.kind == T::kindof;
 }
 
 template<class T> bool
@@ -42,6 +47,13 @@ template<class T> T *
 cast(typename T::Base *v) {
   assert (isa<T>(v));
   return static_cast<T *>(v);
+}
+
+template<class T, class U> typename std::enable_if<std::is_base_of<typename T::Base, U>::value,
+						   typename propagate_cv<U, T>::type &>::type
+cast(U &v) {
+  assert (isa<T>(v));
+  return static_cast<typename propagate_cv<U, T>::type &>(v);
 }
 
 template<class T, class U> typename std::enable_if<std::is_base_of<typename T::Base, U>::value,

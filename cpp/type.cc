@@ -16,7 +16,7 @@
 namespace hail {
 
 std::ostream &
-operator <<(std::ostream &out, const BaseType &t) {
+operator<<(std::ostream &out, const BaseType &t) {
   t.put_to(out);
   return out;
 }
@@ -60,6 +60,17 @@ TMatrixTable::TMatrixTable(Context &c,
     false);
 }
 
+bool
+TMatrixTable::operator==(const BaseType &that) const {
+  auto *that2 = dyn_cast<TMatrixTable>(&that);
+  return that2
+    && *global_type == *that2->global_type
+    && *col_key_type == *that2->col_key_type
+    && *col_type == *that2->col_type
+    && *row_key_type == *that2->row_key_type
+    && *row_type == *that2->row_type;
+}
+
 std::ostream &
 TMatrixTable::put_to(std::ostream &out) const {
   out << "MatrixTable {\n";
@@ -90,6 +101,12 @@ Type::Type(Kind kind, bool required, uint64_t alignment, uint64_t size, const Ty
   : BaseType(kind), required(required),
     alignment(alignment), size(size),
     fundamental_type(fundamental_type) {
+}
+
+bool
+Type::operator==(const BaseType &that) const {
+  return kind == that.kind
+    && required == static_cast<const Type &>(that).required;
 }
 
 TBoolean::TBoolean(bool required)
@@ -158,6 +175,12 @@ TString::put_to(std::ostream &out) const {
   return out;
 }
 
+bool
+Field::operator==(const Field &f) const {
+  return name == f.name
+    && *type == *f.type;
+}
+
 TStruct::TStruct(Context &c, const std::vector<Field> &fields, bool required)
   : Type(Kind::STRUCT, required),
     fields(fields),
@@ -197,6 +220,12 @@ TStruct::TStruct(Context &c, const std::vector<Field> &fields, bool required)
   }
 }
 
+bool
+TStruct::operator==(const BaseType &that) const {
+  return Type::operator==(that)
+    && fields == cast<TStruct>(that).fields;
+}
+
 std::ostream &
 TStruct::put_to(std::ostream &out) const {
   if (required)
@@ -217,6 +246,12 @@ TArray::TArray(Context &c, const Type *element_type, bool required)
     fundamental_type = c.array_type(element_type->fundamental_type, required);
 }
 
+bool
+TArray::operator==(const BaseType &that) const {
+  return Type::operator==(that)
+    && *element_type == *cast<TArray>(that).element_type;
+}
+
 std::ostream &
 TArray::put_to(std::ostream &out) const {
   if (required)
@@ -232,6 +267,12 @@ TSet::TSet(Context &c, const Type *element_type, bool required)
   : TComplex(c.array_type(element_type, required), Kind::SET, required),
     element_type(element_type)
 {
+}
+
+bool
+TSet::operator==(const BaseType &that) const {
+  return Type::operator==(that)
+    && *element_type == *cast<TSet>(that).element_type;
 }
 
 std::ostream &
@@ -256,6 +297,12 @@ TLocus::TLocus(Context &c, const std::string &gr, bool required)
   : TComplex(c.locus_representation(required), Kind::LOCUS, required),
     gr(gr) {}
 
+bool
+TLocus::operator==(const BaseType &that) const {
+  return Type::operator==(that)
+    && gr == cast<TLocus>(that).gr;
+}
+
 std::ostream &
 TLocus::put_to(std::ostream &out) const {
   if (required)
@@ -278,6 +325,12 @@ TAltAllele::put_to(std::ostream &out) const {
 TVariant::TVariant(Context &c, const std::string &gr, bool required)
   : TComplex(c.variant_representation(required), Kind::VARIANT, required),
     gr(gr) {}
+
+bool
+TVariant::operator==(const BaseType &that) const {
+  return Type::operator==(that)
+    && gr == cast<TVariant>(that).gr;
+}
 
 std::ostream &
 TVariant::put_to(std::ostream &out) const {

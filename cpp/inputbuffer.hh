@@ -1,5 +1,6 @@
 #ifndef HAIL_INPUTBUFFER_HH
 #define HAIL_INPUTBUFFER_HH
+
 #pragma once
 
 #include "util.hh"
@@ -19,9 +20,6 @@ public:
   size_t end;
   
   char *comp;
-  
-  // stats
-  uint64_t ninput, noutput;
   
   void read_fully(void *dst0, size_t n);
   void read_block();
@@ -70,17 +68,31 @@ public:
   }
   
   int32_t read_int() {
-    ensure(4);
-    int32_t i = *(int32_t *)(buf + off);
-    off += 4;
-    return i;
+    ensure(1);
+    
+    int8_t b = read_byte_();
+    int32_t x = b & 0x7f;
+    int shift = 7;
+    while ((b & 0x80) != 0) {
+      b = read_byte_();
+      x |= ((b & 0x7f) << shift);
+      shift += 7;
+    }
+    return x;
   }
 
   int64_t read_long() {
-    ensure(8);
-    int64_t l = *(int64_t *)(buf + off);
-    off += 8;
-    return l;
+    ensure(1);
+    
+    int8_t b = read_byte_();
+    int64_t x = b & 0x7f;
+    int shift = 7;
+    while ((b & 0x80) != 0) {
+      b = read_byte_();
+      x |= ((b & 0x7f) << shift);
+      shift += 7;
+    }
+    return x;
   }
   
   void read_bytes(Region &region, offset_t roff, size_t n) {

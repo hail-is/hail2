@@ -62,6 +62,8 @@ public:
   
   std::string to_string() const;
   
+  virtual bool operator==(const BaseType &that) const = 0;
+  
   virtual std::ostream &put_to(std::ostream &out) const = 0;
 };
 
@@ -77,6 +79,8 @@ class TMatrixTable : public BaseType {
 	       const Type *entry_type);
   
 public:
+  static constexpr Kind kindof = Kind::MATRIXTABLE;
+  
   // FIXME support compound keys
   const Type *global_type;
   const Type *col_key_type;
@@ -87,6 +91,8 @@ public:
   
   // FIXME name
   const Type *row_impl_type;
+
+  bool operator==(const BaseType &that) const;
   
   std::ostream &put_to(std::ostream &out) const;
 };
@@ -106,6 +112,8 @@ public:
   uint64_t size;
   
   const Type *fundamental_type;
+  
+  bool operator==(const BaseType &that) const;
   
   bool is_fundamental() const { return fundamental_type == this; }
 };
@@ -183,6 +191,8 @@ class Field {
 public:
   std::string name;
   const Type *type;
+  
+  bool operator==(const Field &f) const;
 };
 
 class TStruct : public Type {
@@ -201,6 +211,8 @@ public:
   std::vector<uint64_t> field_missing_bit;
   
   uint64_t missing_bits_size() const { return (n_nonrequired_fields + 7) >> 3; }
+  
+  bool operator==(const BaseType &that) const;
   
   std::ostream &put_to(std::ostream &out) const;
 };
@@ -244,6 +256,8 @@ public:
     return elements_offset(n) + i * element_size();
   }
   
+  bool operator==(const BaseType &that) const;
+  
   std::ostream &put_to(std::ostream &out) const;
 };
 
@@ -264,6 +278,8 @@ public:
   static constexpr Kind kindof = Kind::SET;
   
   const Type *element_type;
+  
+  bool operator==(const BaseType &that) const;
   
   std::ostream &put_to(std::ostream &out) const;
 };
@@ -288,6 +304,8 @@ public:
   static constexpr Kind kindof = Kind::LOCUS;
   
   std::string gr;
+
+  bool operator==(const BaseType &that) const;
   
   std::ostream &put_to(std::ostream &out) const;
 };
@@ -312,6 +330,8 @@ public:
   static constexpr Kind kindof = Kind::VARIANT;
   
   const std::string gr;
+  
+  bool operator==(const BaseType &that) const;
   
   std::ostream &put_to(std::ostream &out) const;
 };

@@ -94,7 +94,16 @@ cdef class MatrixTable(object):
         return self._typ
 
 cdef class BaseType:
-    pass
+    cdef const hail.BaseType ct
+
+    def __hash__(self):
+        return <intptr_t>self.ct
+
+    def __eq__(self, that):
+        return ct == that.ct
+
+    def __repr__(self):
+        return self.ct.to_string().decode('ascii')
 
 cdef Type_init(const libhail.Type *ct):
     t = Type()
@@ -102,14 +111,12 @@ cdef Type_init(const libhail.Type *ct):
     return t
 
 cdef class Type(BaseType):
-    cdef const libhail.Type *ct
+    cdef const libhail.Type *ctype(self):
+        return <const libhail.Type *>self.ct
 
     @property
     def required(self):
-        return self.ct.required
-
-    def __repr__(self):
-        return self.ct.to_string().decode('ascii')
+        return self.ctype().required
 
 cdef TMatrixTable_init(const libhail.TMatrixTable *ct):
     t = TMatrixTable()
@@ -117,7 +124,4 @@ cdef TMatrixTable_init(const libhail.TMatrixTable *ct):
     return t
 
 cdef class TMatrixTable(BaseType):
-    cdef const libhail.TMatrixTable *ct
-
-    def __repr__(self):
-        return self.ct.to_string().decode('ascii')
+    pass
