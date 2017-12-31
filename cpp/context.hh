@@ -28,7 +28,6 @@ class Context {
 		     equal_to_points_to<BaseType>> types;
   
   // FIXME sublcass of BaseType
-  // FIXME actually intern
   template<typename T> const T *intern(const T *t);
   
 public:

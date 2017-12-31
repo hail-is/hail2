@@ -121,7 +121,7 @@ MatrixTableIterator::next() {
   
   advance();
   
-  return TypedRegionValue(region, offset, row_impl);
+  return TypedRegionValue(&region, offset, row_impl);
 }
 
 MatrixTable::MatrixTable(Context &c, const std::string &filename)

@@ -3,7 +3,7 @@
 from libcpp cimport bool
 from libcpp.memory cimport shared_ptr, make_shared
 from libcpp.string cimport string
-from libc.stdint cimport uintptr_t
+from libc.stdint cimport uintptr_t, uint64_t
 
 from hail3 cimport libhail
 
@@ -60,33 +60,46 @@ cdef class Context(object):
     def alt_allele_type(self, bool required):
         return self._get_type(self.context.alt_allele_type(required))
 
-cdef TypedRegionValue_init(libhail.TypedRegionValue ctrv):
-    trv = TypedRegionValue()
-    trv.ctrv = ctrv
-    return trv
-
-cdef class TypedRegionValue(object):
-    cdef libhail.TypedRegionValue ctrv
-
-    def __repr__(self):
-        return self.ctrv.to_string().decode('ascii')
-
-cdef MatrixTableIterator_init(shared_ptr[libhail.MatrixTableIterator] ci):
-  i = MatrixTableIterator()
-  i.ci = ci
-  return i
-    
-cdef class MatrixTableIterator(object):
-    cdef shared_ptr[libhail.MatrixTableIterator] ci
-
-    def __iter__(self):
-        return self
-
-    def __next__(self):
-        if self.ci.get().has_next():
-            return TypedRegionValue_init(self.ci.get().next())
-        else:
-            raise StopIteration()
+cdef region_value_to_python(libhail.TypedRegionValue ctrv):
+    cdef libhail.BaseTypeKind k = ctrv.typ.kind
+    cdef uint64_t n
+    cdef uint64_t i
+    cdef const libhail.TStruct *ts
+    if k == libhail.BOOLEAN:
+        return ctrv.load_bool()
+    elif k == libhail.INT32:
+        return ctrv.load_int()
+    elif k == libhail.INT64:
+        return ctrv.load_long()
+    elif k == libhail.FLOAT32:
+        return ctrv.load_float()
+    elif k == libhail.FLOAT64:
+        return ctrv.load_double()
+    elif k == libhail.STRING:
+        return ctrv.load_string().decode('ascii')
+    elif k == libhail.ARRAY:
+        n = ctrv.array_size()
+        i = 0
+        a = []
+        while i < n:
+            if (ctrv.is_element_defined(i)):
+                a.append(region_value_to_python(ctrv.load_element(i)))
+            else:
+                a.append(None)
+            i = i + 1
+        return a
+    elif k == libhail.STRUCT:
+        ts = <const libhail.TStruct *>ctrv.typ
+        n = ts.fields.size()
+        i = 0
+        s = {}
+        while i < n:
+            if ctrv.is_field_defined(i):
+                s[ts.fields[i].name.decode('ascii')] = region_value_to_python(ctrv.load_field(i))
+            i = i + 1
+        return s
+    else:
+        raise RuntimeError('unknown type kind')
 
 cdef class MatrixTable(object):
     cdef Context context
@@ -98,7 +111,11 @@ cdef class MatrixTable(object):
 
     # FIXME leaves file open
     def rows(self):
-        return MatrixTableIterator_init(self.mt.get().iterator())
+        cdef shared_ptr[libhail.MatrixTableIterator] ci = self.mt.get().iterator()
+        rs = []
+        while ci.get().has_next():
+            rs.append(region_value_to_python(ci.get().next()))
+        return rs
 
     def count_rows(self):
         return self.mt.get().count_rows()

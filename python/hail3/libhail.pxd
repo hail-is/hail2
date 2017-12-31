@@ -4,7 +4,7 @@ from libcpp cimport bool
 from libcpp.memory cimport shared_ptr
 from libcpp.string cimport string
 from libcpp.vector cimport vector
-from libc.stdint cimport uint64_t
+from libc.stdint cimport int32_t, int64_t, uint64_t
 
 cdef extern from "type.hh" namespace "hail":
     cdef cppclass BaseTypeKind "hail::BaseType::Kind":
@@ -91,6 +91,20 @@ cdef extern from "type.hh" namespace "hail::BaseType::Kind":
 
 cdef extern from "region.hh" namespace "hail":
     cdef cppclass TypedRegionValue:
+        const Type *typ "type"
+        bool load_bool()
+        int32_t load_int()
+        int64_t load_long()
+        float load_float()
+        double load_double()
+        string load_string()
+        bool is_field_missing(uint64_t i)
+        bool is_field_defined(uint64_t i)
+        TypedRegionValue load_field(uint64_t i)
+        bool is_element_missing(uint64_t i)
+        bool is_element_defined(uint64_t i)
+        uint64_t array_size()
+        TypedRegionValue load_element(uint64_t i)
         string to_string()
 
 cdef extern from "context.hh" namespace "hail":

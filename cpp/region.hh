@@ -157,111 +157,81 @@ extern std::ostream &operator<<(std::ostream &out, const TypedRegionValue &t);
 class TypedRegionValue {
   const Region *region;
   offset_t offset;
+public:
   const Type *type;
   
   std::ostream &put_to(std::ostream &out, uint64_t off, const Type *t) const;
   
 public:
   TypedRegionValue() = default;
-  TypedRegionValue(const Region &region, offset_t offset, const Type *type)
-    : region(&region), offset(offset), type(type)
+  TypedRegionValue(const Region *region, offset_t offset, const Type *type)
+    : region(region), offset(offset), type(type)
   {}
-
+  
+  bool load_bool() const {
+    assert(isa<TBoolean>(type->fundamental_type));
+    return region->load_bool(offset);
+  }
+  
+  int32_t load_int() const {
+    assert(isa<TInt32>(type->fundamental_type));
+    return region->load_int(offset);
+  }
+  
+  int64_t load_long() const {
+    assert(isa<TInt64>(type->fundamental_type));
+    return region->load_long(offset);
+  }
+  
+  float load_float() const {
+    assert(isa<TFloat32>(type->fundamental_type));
+    return region->load_float(offset);
+  }
+  
+  double load_double() const {
+    assert(isa<TFloat64>(type->fundamental_type));
+    return region->load_double(offset);
+  }
+  
+  std::string load_string() const {
+    assert(isa<TString>(type->fundamental_type));
+    uint64_t soff = region->load_offset(offset);
+    uint32_t n = region->load_int(soff);
+    return std::string((const char *)(region->mem + soff + 4), n);
+  }
+  
   bool is_field_missing(uint64_t i) {
-    return region->is_field_missing(cast<TStruct>(type), offset, i);
+    return region->is_field_missing(cast<TStruct>(type->fundamental_type), offset, i);
   }
   
   bool is_field_defined(uint64_t i) {
-    return region->is_field_defined(cast<TStruct>(type), offset, i);
-  }
-  
-  bool load_field_bool(uint64_t i) {
-    auto ts = cast<TStruct>(type);
-    assert(isa<TBoolean>(ts->fields[i].type));
-    return region->load_bool(offset + ts->field_offset[i]);
-  }
-  
-  int32_t load_field_int(uint64_t i) {
-    auto ts = cast<TStruct>(type);
-    assert(isa<TInt32>(ts->fields[i].type));
-    return region->load_int(offset + ts->field_offset[i]);
+    return region->is_field_defined(cast<TStruct>(type->fundamental_type), offset, i);
   }
 
-  int64_t load_field_long(uint64_t i) {
-    auto ts = cast<TStruct>(type);
-    assert(isa<TInt64>(ts->fields[i].type));
-    return region->load_long(offset + ts->field_offset[i]);
-  }
-  
-  float load_field_float(uint64_t i) {
-    auto ts = cast<TStruct>(type);
-    assert(isa<TFloat32>(ts->fields[i].type));
-    return region->load_float(offset + ts->field_offset[i]);
-  }
-  
-  double load_field_double(uint64_t i) {
-    auto ts = cast<TStruct>(type);
-    assert(isa<TFloat64>(ts->fields[i].type));
-    return region->load_double(offset + ts->field_offset[i]);
-  }
-  
-  uint64_t load_field_offset(uint64_t i) {
-    auto ts = cast<TStruct>(type);
-    // FIXME predicate for value as offset/pointer
-    assert(isa<TArray>(ts->fields[i].type)
-	   || isa<TString>(ts->fields[i].type));
-    return region->load_offset(offset + ts->field_offset[i]);
+  TypedRegionValue load_field(uint64_t i) {
+    auto ts = cast<TStruct>(type->fundamental_type);
+    return TypedRegionValue(region, offset + ts->field_offset[i], ts->fields[i].type);
   }
   
   bool is_element_missing(uint64_t i) {
-    return region->is_element_missing(cast<TArray>(type), offset, i);
+    return region->is_element_missing(cast<TArray>(type->fundamental_type), offset, i);
   }
   
   bool is_element_defined(uint64_t i) {
-    return region->is_element_defined(cast<TArray>(type), offset, i);
+    return region->is_element_defined(cast<TArray>(type->fundamental_type), offset, i);
   }
   
-  bool load_element_bool(uint64_t i) {
-    auto ta = cast<TArray>(type);
-    assert(isa<TBoolean>(ta->element_type));
-    uint64_t n = region->load_int(offset);
-    return region->load_bool(offset + ta->element_offset(n, i));
+  uint64_t array_size() {
+    assert(isa<TArray>(type->fundamental_type));
+    uint64_t aoff = region->load_offset(offset);
+    return region->load_int(aoff);
   }
   
-  int32_t load_element_int(uint64_t i) {
-    auto ta = cast<TArray>(type);
-    assert(isa<TInt32>(ta->element_type));
-    uint64_t n = region->load_int(offset);
-    return region->load_int(offset + ta->element_offset(n, i));
-  }
-
-  int64_t load_element_long(uint64_t i) {
-    auto ta = cast<TArray>(type);
-    assert(isa<TInt64>(ta->element_type));
-    uint64_t n = region->load_int(offset);
-    return region->load_long(offset + ta->element_offset(n, i));
-  }
-  
-  float load_element_float(uint64_t i) {
-    auto ta = cast<TArray>(type);
-    assert(isa<TFloat32>(ta->element_type));
-    uint64_t n = region->load_int(offset);
-    return region->load_float(offset + ta->element_offset(n, i));
-  }
-  
-  double load_element_double(uint64_t i) {
-    auto ta = cast<TArray>(type);
-    assert(isa<TFloat64>(ta->element_type));
-    uint64_t n = region->load_int(offset);
-    return region->load_double(offset + ta->element_offset(n, i));
-  }
-  
-  uint64_t load_element_offset(uint64_t i) {
-    auto ta = cast<TArray>(type);
-    assert(isa<TArray>(ta->element_type)
-	   || isa<TString>(ta->element_type));
-    uint64_t n = region->load_int(offset);
-    return region->load_offset(offset + ta->element_offset(n, i));
+  TypedRegionValue load_element(uint64_t i) {
+    auto ta = cast<TArray>(type->fundamental_type);
+    uint64_t aoff = region->load_offset(offset);
+    uint64_t n = region->load_int(aoff);
+    return TypedRegionValue(region, aoff + ta->element_offset(n, i), ta->element_type);
   }
   
   std::ostream &put_to(std::ostream &out) const;
